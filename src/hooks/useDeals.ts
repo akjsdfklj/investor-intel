@@ -10,7 +10,6 @@ export function useDeals() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load deals from localStorage
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -23,18 +22,25 @@ export function useDeals() {
     setIsLoading(false);
   }, []);
 
-  // Save deals to localStorage
   const saveDeals = useCallback((newDeals: Deal[]) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newDeals));
   }, []);
 
-  const createDeal = useCallback(async (data: { name: string; url?: string; description?: string }): Promise<{ success: boolean; error?: string; deal?: Deal }> => {
+  const createDeal = useCallback(async (data: { 
+    name: string; 
+    url?: string; 
+    description?: string;
+    pitchDeckUrl?: string;
+    pitchDeckContent?: string;
+  }): Promise<{ success: boolean; error?: string; deal?: Deal }> => {
     const newDeal: Deal = {
       id: `deal_${Date.now()}`,
       userId: 'local_user',
       name: data.name,
       url: data.url || undefined,
       description: data.description || undefined,
+      pitchDeckUrl: data.pitchDeckUrl || undefined,
+      pitchDeckContent: data.pitchDeckContent || undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -53,29 +59,17 @@ export function useDeals() {
     try {
       let scrapedContent = '';
 
-      // Step 1: Scrape website if URL provided
       if (deal.url) {
-        toast({
-          title: 'Crawling website...',
-          description: `Analyzing ${deal.url}`,
-        });
-
+        toast({ title: 'Crawling website...', description: `Analyzing ${deal.url}` });
         const { data: scrapeData, error: scrapeError } = await supabase.functions.invoke('scrape-website', {
           body: { url: deal.url },
         });
-
-        if (scrapeError) {
-          console.error('Scrape error:', scrapeError);
-        } else if (scrapeData?.success) {
+        if (!scrapeError && scrapeData?.success) {
           scrapedContent = scrapeData.markdown || '';
         }
       }
 
-      // Step 2: Generate DD with AI
-      toast({
-        title: 'Generating analysis...',
-        description: 'AI is analyzing the startup',
-      });
+      toast({ title: 'Generating comprehensive analysis...', description: 'AI is analyzing the startup' });
 
       const { data: ddData, error: ddError } = await supabase.functions.invoke('generate-dd', {
         body: {
@@ -83,16 +77,13 @@ export function useDeals() {
           dealUrl: deal.url,
           dealDescription: deal.description,
           scrapedContent,
+          pitchDeckContent: deal.pitchDeckContent,
         },
       });
 
       if (ddError) throw ddError;
+      if (ddData.error) throw new Error(ddData.error);
 
-      if (ddData.error) {
-        throw new Error(ddData.error);
-      }
-
-      // Create DD report
       const ddReport: DDReport = {
         id: `dd_${Date.now()}`,
         dealId: dealId,
@@ -106,29 +97,45 @@ export function useDeals() {
         followUpQuestions: ddData.follow_up_questions || [],
         generatedAt: new Date().toISOString(),
         scrapedContent: scrapedContent || undefined,
+        pitchSanityCheck: ddData.pitch_sanity_check ? {
+          status: ddData.pitch_sanity_check.status,
+          problem: ddData.pitch_sanity_check.problem,
+          solution: ddData.pitch_sanity_check.solution,
+          targetCustomer: ddData.pitch_sanity_check.target_customer,
+          pricingModel: ddData.pitch_sanity_check.pricing_model,
+          keyMetrics: ddData.pitch_sanity_check.key_metrics || [],
+          claimedTAM: ddData.pitch_sanity_check.claimed_tam,
+          missingInfo: ddData.pitch_sanity_check.missing_info || [],
+        } : undefined,
+        swotAnalysis: ddData.swot_analysis,
+        moatAssessment: ddData.moat_assessment,
+        competitorMapping: ddData.competitor_mapping?.map((c: any) => ({
+          name: c.name,
+          description: c.description,
+          country: c.country,
+          fundingStage: c.funding_stage,
+          websiteUrl: c.website_url,
+          comparison: c.comparison,
+        })),
+        investmentSuccessRate: ddData.investment_success_rate ? {
+          probability: ddData.investment_success_rate.probability,
+          confidence: ddData.investment_success_rate.confidence,
+          reasoning: ddData.investment_success_rate.reasoning,
+          keyRisks: ddData.investment_success_rate.key_risks || [],
+          keyStrengths: ddData.investment_success_rate.key_strengths || [],
+        } : undefined,
       };
 
-      // Update local state
-      const updatedDeals = deals.map(d => 
-        d.id === dealId ? { ...d, ddReport } : d
-      );
+      const updatedDeals = deals.map(d => d.id === dealId ? { ...d, ddReport } : d);
       setDeals(updatedDeals);
       saveDeals(updatedDeals);
 
-      toast({
-        title: 'Success!',
-        description: 'Due diligence report generated',
-      });
-
+      toast({ title: 'Success!', description: 'Comprehensive DD report generated' });
       return { success: true };
     } catch (error) {
       console.error('Error generating DD:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate DD';
-      toast({
-        title: 'Error',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
       return { success: false, error: errorMessage };
     }
   }, [deals, saveDeals, toast]);
@@ -144,14 +151,11 @@ export function useDeals() {
     return deals.find(d => d.id === dealId);
   }, [deals]);
 
-  return {
-    deals,
-    isLoading,
-    createDeal,
-    generateDD,
-    deleteDeal,
-    getDeal,
-    canCreateDeal: true,
-    dealsRemaining: Infinity,
-  };
+  const updateDeal = useCallback((dealId: string, updates: Partial<Deal>) => {
+    const updatedDeals = deals.map(d => d.id === dealId ? { ...d, ...updates } : d);
+    setDeals(updatedDeals);
+    saveDeals(updatedDeals);
+  }, [deals, saveDeals]);
+
+  return { deals, isLoading, createDeal, generateDD, deleteDeal, getDeal, updateDeal, canCreateDeal: true, dealsRemaining: Infinity };
 }
