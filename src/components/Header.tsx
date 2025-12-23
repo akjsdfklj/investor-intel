@@ -1,5 +1,6 @@
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Settings, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 export function Header() {
   const navigate = useNavigate();
@@ -14,7 +15,22 @@ export function Header() {
           <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
             <TrendingUp className="w-6 h-6 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold gradient-text">TechDD</span>
+          <span className="text-xl font-bold gradient-text">AI VC DD Copilot</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <span>Lovable AI</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/settings')}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Settings className="w-5 h-5" />
+          </Button>
         </div>
       </div>
     </header>

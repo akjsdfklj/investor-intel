@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.submit-founder-inquiry]
 verify_jwt = false
+
+[functions.parse-pitch-deck]
+verify_jwt = false
