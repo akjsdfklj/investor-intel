@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState } from 'react';
 import { useDeals } from '@/hooks/useDeals';
 import { Header } from '@/components/Header';
 import { ScoreBox } from '@/components/ScoreBox';
@@ -14,15 +13,8 @@ import { format } from 'date-fns';
 export default function DealDetail() {
   const { dealId } = useParams<{ dealId: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { getDeal, isLoading: dealsLoading, generateDD } = useDeals();
+  const { getDeal, isLoading, generateDD } = useDeals();
   const [isGenerating, setIsGenerating] = useState(false);
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate('/auth');
-    }
-  }, [authLoading, isAuthenticated, navigate]);
 
   const deal = dealId ? getDeal(dealId) : undefined;
 
@@ -33,7 +25,7 @@ export default function DealDetail() {
     setIsGenerating(false);
   };
 
-  if (authLoading || dealsLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
