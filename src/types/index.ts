@@ -28,6 +28,7 @@ export interface DDReport {
   };
   followUpQuestions: string[];
   generatedAt: string;
+  scrapedContent?: string;
 }
 
 export interface ScoreItem {
@@ -40,4 +41,15 @@ export interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+}
+
+export interface FounderInquiry {
+  id: string;
+  dealId: string;
+  founderName: string;
+  founderEmail: string;
+  founderBio: string;
+  linkedinUrl?: string;
+  additionalInfo?: string;
+  submittedAt: string;
 }

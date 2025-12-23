@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, AuthState } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -8,11 +9,6 @@ interface AuthContextType extends AuthState {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-const STORAGE_KEY = 'techdd_auth';
-
-// Mock user data for demo purposes
-const mockUsers: { email: string; password: string; user: User }[] = [];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -23,109 +19,97 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    // Check for stored auth on mount
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
+    // Check for existing session
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        const user: User = {
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+          plan: 'free', // Default to free, could be stored in user metadata
+          createdAt: session.user.created_at,
+        };
+        
         setState({
-          user: parsed.user,
-          token: parsed.token,
+          user,
+          token: session.access_token,
           isAuthenticated: true,
           isLoading: false,
         });
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
+      } else {
         setState(prev => ({ ...prev, isLoading: false }));
       }
-    } else {
-      setState(prev => ({ ...prev, isLoading: false }));
-    }
+    };
+
+    checkSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        const user: User = {
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+          plan: 'free',
+          createdAt: session.user.created_at,
+        };
+        
+        setState({
+          user,
+          token: session.access_token,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      } else {
+        setState({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // Check mock users first
-    const mockUser = mockUsers.find(u => u.email === email && u.password === password);
-    
-    if (mockUser) {
-      const token = `jwt_${Date.now()}_${Math.random().toString(36).substr(2)}`;
-      const authData = { user: mockUser.user, token };
-      
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(authData));
-      setState({
-        user: mockUser.user,
-        token,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-      
-      return { success: true };
-    }
-
-    // For demo: accept any email/password and create user
-    const newUser: User = {
-      id: `user_${Date.now()}`,
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      name: email.split('@')[0],
-      plan: 'free',
-      createdAt: new Date().toISOString(),
-    };
-
-    const token = `jwt_${Date.now()}_${Math.random().toString(36).substr(2)}`;
-    const authData = { user: newUser, token };
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authData));
-    setState({
-      user: newUser,
-      token,
-      isAuthenticated: true,
-      isLoading: false,
+      password,
     });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
 
     return { success: true };
   }, []);
 
   const signup = useCallback(async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // Check if user already exists
-    const existingUser = mockUsers.find(u => u.email === email);
-    if (existingUser) {
-      return { success: false, error: 'An account with this email already exists' };
-    }
-
-    const newUser: User = {
-      id: `user_${Date.now()}`,
+    const { data, error } = await supabase.auth.signUp({
       email,
-      name,
-      plan: 'free',
-      createdAt: new Date().toISOString(),
-    };
-
-    // Store in mock users
-    mockUsers.push({ email, password, user: newUser });
-
-    const token = `jwt_${Date.now()}_${Math.random().toString(36).substr(2)}`;
-    const authData = { user: newUser, token };
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authData));
-    setState({
-      user: newUser,
-      token,
-      isAuthenticated: true,
-      isLoading: false,
+      password,
+      options: {
+        data: {
+          name,
+        },
+      },
     });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
 
     return { success: true };
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem('techdd_deals');
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
     setState({
       user: null,
       token: null,
