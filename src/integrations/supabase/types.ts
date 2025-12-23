@@ -134,15 +134,7 @@ export type Database = {
           linkedin_url?: string | null
           submitted_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "founder_inquiries_deal_id_fkey"
-            columns: ["deal_id"]
-            isOneToOne: false
-            referencedRelation: "deals"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
