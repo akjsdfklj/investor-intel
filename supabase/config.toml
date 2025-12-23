@@ -1,1 +1,14 @@
 project_id = "axbmjhcaabeinhgqrujk"
+
+[api]
+enabled = true
+port = 54321
+
+[functions.generate-dd]
+verify_jwt = true
+
+[functions.scrape-website]
+verify_jwt = true
+
+[functions.submit-founder-inquiry]
+verify_jwt = false

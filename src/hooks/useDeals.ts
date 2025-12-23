@@ -1,83 +1,88 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Deal, DDReport } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-
-const DEALS_STORAGE_KEY = 'techdd_deals';
-
-// Mock DD report generator
-const generateMockDDReport = (deal: Deal): DDReport => {
-  const scores = [
-    { score: Math.floor(Math.random() * 3) + 3, reason: "Strong founding team with relevant industry experience and proven track record in building successful products." },
-    { score: Math.floor(Math.random() * 3) + 2, reason: "Large addressable market with strong growth potential. Competition exists but differentiation is clear." },
-    { score: Math.floor(Math.random() * 3) + 3, reason: "Product shows strong product-market fit signals with growing user engagement and retention metrics." },
-    { score: Math.floor(Math.random() * 3) + 2, reason: "Network effects and proprietary technology create moderate barriers to entry." },
-  ];
-
-  return {
-    id: `dd_${Date.now()}`,
-    dealId: deal.id,
-    summary: `${deal.name} presents an interesting investment opportunity in the technology sector. The company demonstrates strong fundamentals with a capable team and clear product vision. Market conditions appear favorable, though competitive dynamics should be monitored closely. Key strengths include technical innovation and early customer traction. Areas requiring further diligence include go-to-market strategy scaling and unit economics optimization. Overall, this opportunity warrants further discussion and deeper analysis of financial projections.`,
-    scores: {
-      team: { score: scores[0].score, reason: scores[0].reason },
-      market: { score: scores[1].score, reason: scores[1].reason },
-      product: { score: scores[2].score, reason: scores[2].reason },
-      moat: { score: scores[3].score, reason: scores[3].reason },
-    },
-    followUpQuestions: [
-      "What is the current monthly burn rate and runway?",
-      "Can you share cohort analysis data for user retention?",
-      "What are the key metrics you're tracking for product-market fit?",
-      "How does your technology stack compare to competitors?",
-      "What is your customer acquisition cost (CAC) and lifetime value (LTV)?",
-      "What are the main risks you see in executing your roadmap?",
-    ],
-    generatedAt: new Date().toISOString(),
-  };
-};
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export function useDeals() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load deals from localStorage
-  useEffect(() => {
-    if (user) {
-      const stored = localStorage.getItem(DEALS_STORAGE_KEY);
-      if (stored) {
-        try {
-          const allDeals = JSON.parse(stored) as Deal[];
-          const userDeals = allDeals.filter(d => d.userId === user.id);
-          setDeals(userDeals);
-        } catch {
-          setDeals([]);
+  // Fetch deals from Supabase
+  const fetchDeals = useCallback(async () => {
+    if (!user) {
+      setDeals([]);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const { data: dealsData, error: dealsError } = await supabase
+        .from('deals')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (dealsError) throw dealsError;
+
+      // Fetch DD reports for all deals
+      const dealIds = dealsData?.map(d => d.id) || [];
+      let reportsMap: Record<string, DDReport> = {};
+
+      if (dealIds.length > 0) {
+        const { data: reportsData, error: reportsError } = await supabase
+          .from('dd_reports')
+          .select('*')
+          .in('deal_id', dealIds);
+
+        if (!reportsError && reportsData) {
+          reportsData.forEach(report => {
+            reportsMap[report.deal_id] = {
+              id: report.id,
+              dealId: report.deal_id,
+              summary: report.summary || '',
+              scores: {
+                team: { score: report.team_score || 0, reason: report.team_reason || '' },
+                market: { score: report.market_score || 0, reason: report.market_reason || '' },
+                product: { score: report.product_score || 0, reason: report.product_reason || '' },
+                moat: { score: report.moat_score || 0, reason: report.moat_reason || '' },
+              },
+              followUpQuestions: report.follow_up_questions || [],
+              generatedAt: report.created_at,
+              scrapedContent: report.scraped_content || undefined,
+            };
+          });
         }
       }
-    } else {
-      setDeals([]);
-    }
-    setIsLoading(false);
-  }, [user]);
 
-  // Save deals to localStorage
-  const saveDeals = useCallback((newDeals: Deal[]) => {
-    const stored = localStorage.getItem(DEALS_STORAGE_KEY);
-    let allDeals: Deal[] = [];
-    
-    if (stored) {
-      try {
-        allDeals = JSON.parse(stored);
-        // Remove current user's deals
-        allDeals = allDeals.filter(d => d.userId !== user?.id);
-      } catch {
-        allDeals = [];
-      }
+      const formattedDeals: Deal[] = (dealsData || []).map(d => ({
+        id: d.id,
+        userId: d.user_id,
+        name: d.name,
+        url: d.url || undefined,
+        description: d.description || undefined,
+        createdAt: d.created_at,
+        ddReport: reportsMap[d.id],
+      }));
+
+      setDeals(formattedDeals);
+    } catch (error) {
+      console.error('Error fetching deals:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load deals',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Add updated user deals
-    allDeals = [...allDeals, ...newDeals];
-    localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(allDeals));
-  }, [user]);
+  }, [user, toast]);
+
+  useEffect(() => {
+    fetchDeals();
+  }, [fetchDeals]);
 
   const createDeal = useCallback(async (data: { name: string; url?: string; description?: string }): Promise<{ success: boolean; error?: string; deal?: Deal }> => {
     if (!user) {
@@ -89,50 +94,166 @@ export function useDeals() {
       return { success: false, error: 'Free tier limit reached (3 deals). Upgrade to Pro for unlimited deals.' };
     }
 
-    const newDeal: Deal = {
-      id: `deal_${Date.now()}`,
-      userId: user.id,
-      name: data.name,
-      url: data.url || undefined,
-      description: data.description || undefined,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const { data: newDeal, error } = await supabase
+        .from('deals')
+        .insert({
+          user_id: user.id,
+          name: data.name,
+          url: data.url || null,
+          description: data.description || null,
+        })
+        .select()
+        .single();
 
-    const updatedDeals = [...deals, newDeal];
-    setDeals(updatedDeals);
-    saveDeals(updatedDeals);
+      if (error) throw error;
 
-    return { success: true, deal: newDeal };
-  }, [user, deals, saveDeals]);
+      const formattedDeal: Deal = {
+        id: newDeal.id,
+        userId: newDeal.user_id,
+        name: newDeal.name,
+        url: newDeal.url || undefined,
+        description: newDeal.description || undefined,
+        createdAt: newDeal.created_at,
+      };
+
+      setDeals(prev => [formattedDeal, ...prev]);
+      return { success: true, deal: formattedDeal };
+    } catch (error) {
+      console.error('Error creating deal:', error);
+      return { success: false, error: 'Failed to create deal' };
+    }
+  }, [user, deals.length]);
 
   const generateDD = useCallback(async (dealId: string): Promise<{ success: boolean; error?: string }> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    const dealIndex = deals.findIndex(d => d.id === dealId);
-    if (dealIndex === -1) {
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) {
       return { success: false, error: 'Deal not found' };
     }
 
-    const deal = deals[dealIndex];
-    const ddReport = generateMockDDReport(deal);
+    try {
+      let scrapedContent = '';
 
-    const updatedDeal = { ...deal, ddReport };
-    const updatedDeals = [...deals];
-    updatedDeals[dealIndex] = updatedDeal;
+      // Step 1: Scrape website if URL provided
+      if (deal.url) {
+        toast({
+          title: 'Crawling website...',
+          description: `Analyzing ${deal.url}`,
+        });
 
-    setDeals(updatedDeals);
-    saveDeals(updatedDeals);
+        const { data: scrapeData, error: scrapeError } = await supabase.functions.invoke('scrape-website', {
+          body: { url: deal.url },
+        });
 
-    return { success: true };
-  }, [deals, saveDeals]);
+        if (scrapeError) {
+          console.error('Scrape error:', scrapeError);
+        } else if (scrapeData?.success) {
+          scrapedContent = scrapeData.markdown || '';
+        }
+      }
+
+      // Step 2: Generate DD with AI
+      toast({
+        title: 'Generating analysis...',
+        description: 'AI is analyzing the startup',
+      });
+
+      const { data: ddData, error: ddError } = await supabase.functions.invoke('generate-dd', {
+        body: {
+          dealName: deal.name,
+          dealUrl: deal.url,
+          dealDescription: deal.description,
+          scrapedContent,
+        },
+      });
+
+      if (ddError) throw ddError;
+
+      if (ddData.error) {
+        throw new Error(ddData.error);
+      }
+
+      // Step 3: Save DD report to database
+      const { data: savedReport, error: saveError } = await supabase
+        .from('dd_reports')
+        .insert({
+          deal_id: dealId,
+          summary: ddData.summary,
+          team_score: ddData.team_score,
+          team_reason: ddData.team_reason,
+          market_score: ddData.market_score,
+          market_reason: ddData.market_reason,
+          product_score: ddData.product_score,
+          product_reason: ddData.product_reason,
+          moat_score: ddData.moat_score,
+          moat_reason: ddData.moat_reason,
+          follow_up_questions: ddData.follow_up_questions,
+          scraped_content: scrapedContent || null,
+        })
+        .select()
+        .single();
+
+      if (saveError) throw saveError;
+
+      // Update local state
+      const ddReport: DDReport = {
+        id: savedReport.id,
+        dealId: savedReport.deal_id,
+        summary: savedReport.summary || '',
+        scores: {
+          team: { score: savedReport.team_score || 0, reason: savedReport.team_reason || '' },
+          market: { score: savedReport.market_score || 0, reason: savedReport.market_reason || '' },
+          product: { score: savedReport.product_score || 0, reason: savedReport.product_reason || '' },
+          moat: { score: savedReport.moat_score || 0, reason: savedReport.moat_reason || '' },
+        },
+        followUpQuestions: savedReport.follow_up_questions || [],
+        generatedAt: savedReport.created_at,
+        scrapedContent: savedReport.scraped_content || undefined,
+      };
+
+      setDeals(prev => prev.map(d => 
+        d.id === dealId ? { ...d, ddReport } : d
+      ));
+
+      toast({
+        title: 'Success!',
+        description: 'Due diligence report generated',
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error generating DD:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate DD';
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      return { success: false, error: errorMessage };
+    }
+  }, [deals, toast]);
 
   const deleteDeal = useCallback(async (dealId: string): Promise<{ success: boolean }> => {
-    const updatedDeals = deals.filter(d => d.id !== dealId);
-    setDeals(updatedDeals);
-    saveDeals(updatedDeals);
-    return { success: true };
-  }, [deals, saveDeals]);
+    try {
+      const { error } = await supabase
+        .from('deals')
+        .delete()
+        .eq('id', dealId);
+
+      if (error) throw error;
+
+      setDeals(prev => prev.filter(d => d.id !== dealId));
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting deal:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete deal',
+        variant: 'destructive',
+      });
+      return { success: false };
+    }
+  }, [toast]);
 
   const getDeal = useCallback((dealId: string): Deal | undefined => {
     return deals.find(d => d.id === dealId);
@@ -150,5 +271,6 @@ export function useDeals() {
     getDeal,
     canCreateDeal,
     dealsRemaining,
+    refetch: fetchDeals,
   };
 }

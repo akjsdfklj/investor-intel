@@ -14,7 +14,136 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      dd_reports: {
+        Row: {
+          created_at: string
+          deal_id: string
+          follow_up_questions: string[] | null
+          id: string
+          market_reason: string | null
+          market_score: number | null
+          moat_reason: string | null
+          moat_score: number | null
+          product_reason: string | null
+          product_score: number | null
+          scraped_content: string | null
+          summary: string | null
+          team_reason: string | null
+          team_score: number | null
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          follow_up_questions?: string[] | null
+          id?: string
+          market_reason?: string | null
+          market_score?: number | null
+          moat_reason?: string | null
+          moat_score?: number | null
+          product_reason?: string | null
+          product_score?: number | null
+          scraped_content?: string | null
+          summary?: string | null
+          team_reason?: string | null
+          team_score?: number | null
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          follow_up_questions?: string[] | null
+          id?: string
+          market_reason?: string | null
+          market_score?: number | null
+          moat_reason?: string | null
+          moat_score?: number | null
+          product_reason?: string | null
+          product_score?: number | null
+          scraped_content?: string | null
+          summary?: string | null
+          team_reason?: string | null
+          team_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dd_reports_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deals: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      founder_inquiries: {
+        Row: {
+          additional_info: string | null
+          deal_id: string
+          founder_bio: string
+          founder_email: string
+          founder_name: string
+          id: string
+          linkedin_url: string | null
+          submitted_at: string
+        }
+        Insert: {
+          additional_info?: string | null
+          deal_id: string
+          founder_bio: string
+          founder_email: string
+          founder_name: string
+          id?: string
+          linkedin_url?: string | null
+          submitted_at?: string
+        }
+        Update: {
+          additional_info?: string | null
+          deal_id?: string
+          founder_bio?: string
+          founder_email?: string
+          founder_name?: string
+          id?: string
+          linkedin_url?: string | null
+          submitted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "founder_inquiries_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
