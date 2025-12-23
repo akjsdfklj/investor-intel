@@ -5,10 +5,10 @@ enabled = true
 port = 54321
 
 [functions.generate-dd]
-verify_jwt = true
+verify_jwt = false
 
 [functions.scrape-website]
-verify_jwt = true
+verify_jwt = false
 
 [functions.submit-founder-inquiry]
 verify_jwt = false
