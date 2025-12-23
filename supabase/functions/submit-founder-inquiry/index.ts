@@ -27,26 +27,14 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if deal exists
-    const { data: deal, error: dealError } = await supabase
-      .from('deals')
-      .select('id, name')
-      .eq('id', dealId)
-      .maybeSingle();
+    // Note: Deals are stored in localStorage with custom IDs, not in the database
+    // So we skip the deal existence check and just store the inquiry
 
-    if (dealError || !deal) {
-      console.error('Deal not found:', dealError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Deal not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Insert founder inquiry
+    // Store founder inquiry - using deal_id as text reference since deals are in localStorage
     const { data: inquiry, error: insertError } = await supabase
       .from('founder_inquiries')
       .insert({
-        deal_id: dealId,
+        deal_id: dealId, // This will fail if FK constraint exists - need to remove it
         founder_name: founderName,
         founder_email: founderEmail,
         founder_bio: founderBio,
