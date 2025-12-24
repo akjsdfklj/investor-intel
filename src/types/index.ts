@@ -41,6 +41,7 @@ export interface DDReport {
   moatAssessment?: MoatAssessment;
   competitorMapping?: Competitor[];
   investmentSuccessRate?: InvestmentSuccessRate;
+  financialAnalysis?: FinancialAnalysis;
 }
 
 export interface ScoreItem {
@@ -111,4 +112,69 @@ export interface AISettings {
   provider: 'lovable' | 'openai' | 'gemini';
   openaiKey?: string;
   geminiKey?: string;
+}
+
+export interface FinancialKPIs {
+  // Revenue Metrics
+  arpu: number | null;
+  arr: number | null;
+  mrr: number | null;
+  revenue: number | null;
+  revenueGrowthRate: number | null;
+  
+  // Profitability
+  grossMargin: number | null;
+  profit: number | null;
+  ebitda: number | null;
+  ebitdaMargin: number | null;
+  netMargin: number | null;
+  
+  // Customer Metrics
+  totalCustomers: number | null;
+  cac: number | null;
+  ltv: number | null;
+  ltvCacRatio: number | null;
+  churnRate: number | null;
+  customerLifeCycle: number | null;
+  paybackPeriod: number | null;
+  
+  // Unit Economics
+  avgOrderValue: number | null;
+  purchaseFrequency: number | null;
+  
+  // Sales
+  sales: number | null;
+  salesGrowthRate: number | null;
+  
+  // Product
+  productLifeCycleStage: 'introduction' | 'growth' | 'maturity' | 'decline' | null;
+}
+
+export interface IndustryBenchmark {
+  metric: string;
+  metricKey: string;
+  startupValue: number | null;
+  industryAvg: number | null;
+  topPerformers: number | null;
+  rating: 'below' | 'average' | 'above' | 'excellent';
+}
+
+export interface KPIForecast {
+  year: number;
+  revenue: number;
+  profit: number;
+  ebitda: number;
+  customers: number;
+  arpu: number;
+  ltv: number;
+  cac: number;
+}
+
+export interface FinancialAnalysis {
+  kpis: FinancialKPIs;
+  peerBenchmarks: IndustryBenchmark[];
+  forecasts: KPIForecast[];
+  assumptions: string[];
+  aiInsights: string;
+  lastUpdated: string;
 }

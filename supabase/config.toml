@@ -15,3 +15,6 @@ verify_jwt = false
 
 [functions.parse-pitch-deck]
 verify_jwt = false
+
+[functions.analyze-financials]
+verify_jwt = false
