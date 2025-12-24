@@ -9,16 +9,18 @@ import { CompetitorTable } from '@/components/CompetitorTable';
 import { MoatAssessment } from '@/components/MoatAssessment';
 import { SuccessRateCard } from '@/components/SuccessRateCard';
 import { PitchSanityCheck } from '@/components/PitchSanityCheck';
+import { FinancialAnalysis } from '@/components/FinancialAnalysis';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ExternalLink, Loader2, Calendar, AlertCircle, Globe, MessageSquare, BarChart3, Users, Shield, Target } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Calendar, AlertCircle, Globe, MessageSquare, BarChart3, Users, Shield, Target, Calculator } from 'lucide-react';
 import { format } from 'date-fns';
+import type { FinancialAnalysis as FinancialAnalysisType } from '@/types';
 
 export default function DealDetail() {
   const { dealId } = useParams<{ dealId: string }>();
   const navigate = useNavigate();
-  const { getDeal, isLoading, generateDD } = useDeals();
+  const { getDeal, isLoading, generateDD, updateDeal } = useDeals();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const deal = dealId ? getDeal(dealId) : undefined;
@@ -28,6 +30,15 @@ export default function DealDetail() {
     setIsGenerating(true);
     await generateDD(dealId);
     setIsGenerating(false);
+  };
+
+  const handleFinancialUpdate = (analysis: FinancialAnalysisType) => {
+    if (!deal || !dealId) return;
+    const updatedDdReport = {
+      ...deal.ddReport,
+      financialAnalysis: analysis,
+    };
+    updateDeal(dealId, { ddReport: updatedDdReport as any });
   };
 
   if (isLoading) {
@@ -84,6 +95,7 @@ export default function DealDetail() {
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="flex flex-wrap gap-1 h-auto p-1">
             <TabsTrigger value="overview" className="flex items-center gap-2"><Globe className="w-4 h-4" />Overview</TabsTrigger>
+            <TabsTrigger value="financials" className="flex items-center gap-2"><Calculator className="w-4 h-4" />Financials</TabsTrigger>
             <TabsTrigger value="swot" className="flex items-center gap-2"><BarChart3 className="w-4 h-4" />SWOT</TabsTrigger>
             <TabsTrigger value="competitors" className="flex items-center gap-2"><Users className="w-4 h-4" />Competitors</TabsTrigger>
             <TabsTrigger value="moat" className="flex items-center gap-2"><Shield className="w-4 h-4" />Moat</TabsTrigger>
@@ -113,6 +125,13 @@ export default function DealDetail() {
             )}
           </TabsContent>
 
+          <TabsContent value="financials">
+            <FinancialAnalysis 
+              deal={deal} 
+              financialAnalysis={ddReport?.financialAnalysis} 
+              onUpdate={handleFinancialUpdate} 
+            />
+          </TabsContent>
           <TabsContent value="swot">{ddReport?.swotAnalysis ? <SWOTGrid swot={ddReport.swotAnalysis} /> : <Card className="text-center py-12"><CardContent><p className="text-muted-foreground">Generate DD report first</p></CardContent></Card>}</TabsContent>
           <TabsContent value="competitors">{ddReport?.competitorMapping?.length ? <CompetitorTable competitors={ddReport.competitorMapping} /> : <Card className="text-center py-12"><CardContent><p className="text-muted-foreground">Generate DD report first</p></CardContent></Card>}</TabsContent>
           <TabsContent value="moat">{ddReport?.moatAssessment ? <MoatAssessment moat={ddReport.moatAssessment} /> : <Card className="text-center py-12"><CardContent><p className="text-muted-foreground">Generate DD report first</p></CardContent></Card>}</TabsContent>
