@@ -18,3 +18,18 @@ verify_jwt = false
 
 [functions.analyze-financials]
 verify_jwt = false
+
+[functions.analyze-tam]
+verify_jwt = false
+
+[functions.scenario-modeling]
+verify_jwt = false
+
+[functions.market-insights-chat]
+verify_jwt = false
+
+[functions.analyze-competitors]
+verify_jwt = false
+
+[functions.keyword-intelligence]
+verify_jwt = false

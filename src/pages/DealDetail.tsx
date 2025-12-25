@@ -10,12 +10,17 @@ import { MoatAssessment } from '@/components/MoatAssessment';
 import { SuccessRateCard } from '@/components/SuccessRateCard';
 import { PitchSanityCheck } from '@/components/PitchSanityCheck';
 import { FinancialAnalysis } from '@/components/FinancialAnalysis';
+import { TAMAnalysis } from '@/components/TAMAnalysis';
+import { ScenarioModeling } from '@/components/ScenarioModeling';
+import { MarketInsightsChat } from '@/components/MarketInsightsChat';
+import { DetailedCompetitorTable } from '@/components/DetailedCompetitorTable';
+import { KeywordIntelligence } from '@/components/KeywordIntelligence';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ExternalLink, Loader2, Calendar, AlertCircle, Globe, MessageSquare, BarChart3, Users, Shield, Target, Calculator } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Calendar, AlertCircle, Globe, MessageSquare, BarChart3, Users, Shield, Target, Calculator, TrendingUp, Search } from 'lucide-react';
 import { format } from 'date-fns';
-import type { FinancialAnalysis as FinancialAnalysisType } from '@/types';
+import type { FinancialAnalysis as FinancialAnalysisType, TAMAnalysis as TAMAnalysisType, ScenarioModel, MarketInsight, DetailedCompetitor, KeywordIntelligence as KeywordIntelligenceType } from '@/types';
 
 export default function DealDetail() {
   const { dealId } = useParams<{ dealId: string }>();
@@ -34,11 +39,32 @@ export default function DealDetail() {
 
   const handleFinancialUpdate = (analysis: FinancialAnalysisType) => {
     if (!deal || !dealId) return;
-    const updatedDdReport = {
-      ...deal.ddReport,
-      financialAnalysis: analysis,
-    };
-    updateDeal(dealId, { ddReport: updatedDdReport as any });
+    updateDeal(dealId, { ddReport: { ...deal.ddReport, financialAnalysis: analysis } as any });
+  };
+
+  const handleTAMUpdate = (analysis: TAMAnalysisType) => {
+    if (!deal || !dealId) return;
+    updateDeal(dealId, { ddReport: { ...deal.ddReport, tamAnalysis: analysis } as any });
+  };
+
+  const handleScenarioUpdate = (model: ScenarioModel) => {
+    if (!deal || !dealId) return;
+    updateDeal(dealId, { ddReport: { ...deal.ddReport, scenarioModel: model } as any });
+  };
+
+  const handleInsightsUpdate = (insights: MarketInsight[]) => {
+    if (!deal || !dealId) return;
+    updateDeal(dealId, { ddReport: { ...deal.ddReport, marketInsights: insights } as any });
+  };
+
+  const handleCompetitorsUpdate = (competitors: DetailedCompetitor[]) => {
+    if (!deal || !dealId) return;
+    updateDeal(dealId, { ddReport: { ...deal.ddReport, detailedCompetitors: competitors } as any });
+  };
+
+  const handleKeywordsUpdate = (intelligence: KeywordIntelligenceType) => {
+    if (!deal || !dealId) return;
+    updateDeal(dealId, { ddReport: { ...deal.ddReport, keywordIntelligence: intelligence } as any });
   };
 
   if (isLoading) {
@@ -96,10 +122,13 @@ export default function DealDetail() {
           <TabsList className="flex flex-wrap gap-1 h-auto p-1">
             <TabsTrigger value="overview" className="flex items-center gap-2"><Globe className="w-4 h-4" />Overview</TabsTrigger>
             <TabsTrigger value="financials" className="flex items-center gap-2"><Calculator className="w-4 h-4" />Financials</TabsTrigger>
-            <TabsTrigger value="swot" className="flex items-center gap-2"><BarChart3 className="w-4 h-4" />SWOT</TabsTrigger>
+            <TabsTrigger value="tam" className="flex items-center gap-2"><Target className="w-4 h-4" />TAM</TabsTrigger>
+            <TabsTrigger value="scenarios" className="flex items-center gap-2"><TrendingUp className="w-4 h-4" />Scenarios</TabsTrigger>
             <TabsTrigger value="competitors" className="flex items-center gap-2"><Users className="w-4 h-4" />Competitors</TabsTrigger>
+            <TabsTrigger value="market-qa" className="flex items-center gap-2"><MessageSquare className="w-4 h-4" />Market Q&A</TabsTrigger>
+            <TabsTrigger value="keywords" className="flex items-center gap-2"><Search className="w-4 h-4" />Keywords</TabsTrigger>
+            <TabsTrigger value="swot" className="flex items-center gap-2"><BarChart3 className="w-4 h-4" />SWOT</TabsTrigger>
             <TabsTrigger value="moat" className="flex items-center gap-2"><Shield className="w-4 h-4" />Moat</TabsTrigger>
-            <TabsTrigger value="investment" className="flex items-center gap-2"><Target className="w-4 h-4" />Investment</TabsTrigger>
             <TabsTrigger value="founder" className="flex items-center gap-2"><MessageSquare className="w-4 h-4" />Inquiry</TabsTrigger>
           </TabsList>
 
@@ -120,22 +149,38 @@ export default function DealDetail() {
                 {ddReport.pitchSanityCheck && <PitchSanityCheck check={ddReport.pitchSanityCheck} />}
                 <Card><CardHeader><CardTitle className="text-xl gradient-text">Executive Summary</CardTitle></CardHeader><CardContent><p className="text-foreground leading-relaxed whitespace-pre-wrap">{ddReport.summary}</p></CardContent></Card>
                 <div><h2 className="text-xl font-bold text-foreground mb-4">Investment Scores</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><ScoreBox label="Team" scoreItem={ddReport.scores.team} /><ScoreBox label="Market" scoreItem={ddReport.scores.market} /><ScoreBox label="Product" scoreItem={ddReport.scores.product} /><ScoreBox label="Moat" scoreItem={ddReport.scores.moat} /></div></div>
+                {ddReport.investmentSuccessRate && <SuccessRateCard successRate={ddReport.investmentSuccessRate} />}
                 <Card><CardHeader><CardTitle className="text-xl gradient-text">Follow-up Questions</CardTitle></CardHeader><CardContent><ol className="space-y-3">{ddReport.followUpQuestions.map((q, i) => <li key={i} className="flex gap-3 text-foreground"><span className="flex-shrink-0 w-6 h-6 rounded-full gradient-primary text-primary-foreground text-sm flex items-center justify-center font-medium">{i + 1}</span><span className="leading-relaxed">{q}</span></li>)}</ol></CardContent></Card>
               </div>
             )}
           </TabsContent>
 
           <TabsContent value="financials">
-            <FinancialAnalysis 
-              deal={deal} 
-              financialAnalysis={ddReport?.financialAnalysis} 
-              onUpdate={handleFinancialUpdate} 
-            />
+            <FinancialAnalysis deal={deal} financialAnalysis={ddReport?.financialAnalysis} onUpdate={handleFinancialUpdate} />
           </TabsContent>
+
+          <TabsContent value="tam">
+            <TAMAnalysis deal={deal} tamAnalysis={ddReport?.tamAnalysis} onUpdate={handleTAMUpdate} />
+          </TabsContent>
+
+          <TabsContent value="scenarios">
+            <ScenarioModeling deal={deal} scenarioModel={ddReport?.scenarioModel} currentKPIs={ddReport?.financialAnalysis?.kpis} onUpdate={handleScenarioUpdate} />
+          </TabsContent>
+
+          <TabsContent value="competitors">
+            <DetailedCompetitorTable deal={deal} competitors={ddReport?.detailedCompetitors} onUpdate={handleCompetitorsUpdate} />
+          </TabsContent>
+
+          <TabsContent value="market-qa">
+            <MarketInsightsChat deal={deal} insights={ddReport?.marketInsights} onUpdate={handleInsightsUpdate} />
+          </TabsContent>
+
+          <TabsContent value="keywords">
+            <KeywordIntelligence deal={deal} keywordIntelligence={ddReport?.keywordIntelligence} onUpdate={handleKeywordsUpdate} />
+          </TabsContent>
+
           <TabsContent value="swot">{ddReport?.swotAnalysis ? <SWOTGrid swot={ddReport.swotAnalysis} /> : <Card className="text-center py-12"><CardContent><p className="text-muted-foreground">Generate DD report first</p></CardContent></Card>}</TabsContent>
-          <TabsContent value="competitors">{ddReport?.competitorMapping?.length ? <CompetitorTable competitors={ddReport.competitorMapping} /> : <Card className="text-center py-12"><CardContent><p className="text-muted-foreground">Generate DD report first</p></CardContent></Card>}</TabsContent>
           <TabsContent value="moat">{ddReport?.moatAssessment ? <MoatAssessment moat={ddReport.moatAssessment} /> : <Card className="text-center py-12"><CardContent><p className="text-muted-foreground">Generate DD report first</p></CardContent></Card>}</TabsContent>
-          <TabsContent value="investment">{ddReport?.investmentSuccessRate ? <SuccessRateCard successRate={ddReport.investmentSuccessRate} /> : <Card className="text-center py-12"><CardContent><p className="text-muted-foreground">Generate DD report first</p></CardContent></Card>}</TabsContent>
           <TabsContent value="founder"><FounderInquiryForm dealId={deal.id} dealName={deal.name} /></TabsContent>
         </Tabs>
       </main>
