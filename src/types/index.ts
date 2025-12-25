@@ -42,6 +42,16 @@ export interface DDReport {
   competitorMapping?: Competitor[];
   investmentSuccessRate?: InvestmentSuccessRate;
   financialAnalysis?: FinancialAnalysis;
+  
+  // Advanced DD Features
+  tamAnalysis?: TAMAnalysis;
+  scenarioModel?: ScenarioModel;
+  marketInsights?: MarketInsight[];
+  detailedCompetitors?: DetailedCompetitor[];
+  keywordIntelligence?: KeywordIntelligence;
+  regulatoryAnalysis?: RegulatoryAnalysis;
+  teamAnalysis?: TeamAnalysis;
+  techStackAnalysis?: TechStackAnalysis;
 }
 
 export interface ScoreItem {
@@ -177,4 +187,186 @@ export interface FinancialAnalysis {
   assumptions: string[];
   aiInsights: string;
   lastUpdated: string;
+}
+
+// TAM Analysis
+export interface TAMAnalysis {
+  topDown: {
+    globalMarket: number;
+    cagr: number;
+    tam: number;
+    sam: number;
+    som: number;
+    methodology: string;
+    sources: string[];
+  };
+  bottomUp: {
+    targetCustomers: number;
+    avgRevenuePerCustomer: number;
+    calculatedTAM: number;
+    penetrationRate: number;
+    methodology: string;
+  };
+  validation: {
+    status: 'validated' | 'questionable' | 'inflated';
+    claimedVsCalculated: string;
+    reasoning: string;
+    redFlags: string[];
+  };
+}
+
+// Scenario Modeling
+export interface ScenarioModel {
+  baseCase: ScenarioProjection;
+  bullCase: ScenarioProjection;
+  bearCase: ScenarioProjection;
+  assumptions: ScenarioAssumptions;
+  probabilityWeighted: {
+    expectedRevenue: number;
+    expectedValuation: number;
+    irr: number;
+  };
+}
+
+export interface ScenarioProjection {
+  year1: YearMetrics;
+  year3: YearMetrics;
+  year5: YearMetrics;
+  exitValuation: number;
+  multipleUsed: string;
+  irr: number;
+}
+
+export interface YearMetrics {
+  revenue: number;
+  customers: number;
+  arpu: number;
+  growthRate: number;
+  burnRate: number;
+  runway: number;
+}
+
+export interface ScenarioAssumptions {
+  marketGrowth: { base: number; bull: number; bear: number };
+  customerGrowth: { base: number; bull: number; bear: number };
+  churnRate: { base: number; bull: number; bear: number };
+  pricingPower: { base: number; bull: number; bear: number };
+  fundingEnvironment: string;
+}
+
+// Enhanced Competitor with Full Details
+export interface DetailedCompetitor {
+  name: string;
+  description: string;
+  country: string;
+  headquarters: string;
+  founded: number;
+  employeeCount: number;
+  websiteUrl: string;
+  
+  // Funding Details
+  funding: {
+    totalRaised: number;
+    lastRound: string;
+    lastRoundAmount: number;
+    lastRoundDate: string;
+    valuation: number | null;
+  };
+  
+  // Investors
+  investors: {
+    name: string;
+    type: 'VC' | 'Angel' | 'PE' | 'Corporate' | 'Accelerator';
+    leadInvestor: boolean;
+  }[];
+  
+  // KPIs (estimated)
+  kpis: {
+    estimatedRevenue: number | null;
+    estimatedCustomers: number | null;
+    estimatedArpu: number | null;
+    growthRate: number | null;
+  };
+  
+  // Comparison
+  comparison: {
+    strengthsVsStartup: string[];
+    weaknessesVsStartup: string[];
+    marketPosition: 'leader' | 'challenger' | 'niche' | 'emerging';
+    threatLevel: 'high' | 'medium' | 'low';
+  };
+}
+
+// Market Insights Chat
+export interface MarketInsight {
+  id: string;
+  question: string;
+  answer: string;
+  sources: string[];
+  confidence: 'high' | 'medium' | 'low';
+  timestamp: string;
+  category: 'market' | 'competitor' | 'trend' | 'regulation' | 'technology';
+}
+
+// Keyword Intelligence
+export interface KeywordIntelligence {
+  primaryKeywords: {
+    keyword: string;
+    searchVolume: number;
+    difficulty: number;
+    trend: 'rising' | 'stable' | 'declining';
+    cpc: number;
+  }[];
+  competitorKeywords: {
+    keyword: string;
+    competitors: string[];
+    overlap: number;
+  }[];
+  opportunityGaps: {
+    keyword: string;
+    potential: 'high' | 'medium' | 'low';
+    reasoning: string;
+  }[];
+  seoScore: number;
+  recommendations: string[];
+}
+
+// Regulatory Analysis
+export interface RegulatoryAnalysis {
+  overallRisk: 'high' | 'medium' | 'low';
+  jurisdictions: {
+    region: string;
+    risks: string[];
+    compliance: string[];
+  }[];
+  upcomingRegulations: string[];
+  recommendations: string[];
+}
+
+// Team Analysis
+export interface TeamAnalysis {
+  overallScore: number;
+  founders: {
+    name: string;
+    role: string;
+    background: string;
+    previousExits: number;
+    domainExpertise: 'high' | 'medium' | 'low';
+    linkedinUrl?: string;
+  }[];
+  teamStrengths: string[];
+  gaps: string[];
+  advisors: string[];
+  keyHires: string[];
+}
+
+// Tech Stack Analysis
+export interface TechStackAnalysis {
+  stack: string[];
+  scalability: 'high' | 'medium' | 'low';
+  technicalDebt: 'high' | 'medium' | 'low';
+  ipStrength: number;
+  patents: number;
+  openSourceUsage: string[];
+  securityScore: number;
 }
