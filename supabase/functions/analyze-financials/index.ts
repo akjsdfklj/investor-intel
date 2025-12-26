@@ -5,19 +5,56 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Input validation
+function validateString(value: unknown, maxLength: number = 10000): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, maxLength);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { kpis, sector, dealName, mode } = await req.json();
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid request body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate inputs
+    const dealName = validateString(body.dealName, 200);
+    const sector = validateString(body.sector, 100);
+    const mode = validateString(body.mode, 20) || 'forecast';
+    
+    // Validate KPIs object if provided
+    let kpis = {};
+    if (body.kpis && typeof body.kpis === 'object') {
+      kpis = body.kpis;
+    }
+
+    if (!dealName) {
+      return new Response(JSON.stringify({ error: 'Deal name is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     console.log('Analyze financials request:', { dealName, sector, mode });
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+      console.error('LOVABLE_API_KEY not configured');
+      return new Response(JSON.stringify({ error: 'Service not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const systemPrompt = `You are an expert VC financial analyst. Analyze startup financial KPIs and provide industry benchmarks and forecasts.
@@ -167,8 +204,7 @@ Respond with this exact JSON structure:
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI API error:", response.status, errorText);
+      console.error("AI API error:", response.status);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
@@ -177,20 +213,27 @@ Respond with this exact JSON structure:
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required. Please add credits." }), {
+        return new Response(JSON.stringify({ error: "Usage limit reached. Please try again later." }), {
           status: 402,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
-      throw new Error(`AI API error: ${response.status}`);
+      return new Response(JSON.stringify({ error: 'Analysis service temporarily unavailable' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const aiResponse = await response.json();
     const content = aiResponse.choices?.[0]?.message?.content;
     
     if (!content) {
-      throw new Error("No content in AI response");
+      console.error('No content in AI response');
+      return new Response(JSON.stringify({ error: 'Failed to process analysis. Please try again.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log("AI response received, parsing...");
@@ -208,7 +251,16 @@ Respond with this exact JSON structure:
     }
     cleanedContent = cleanedContent.trim();
 
-    const parsedResult = JSON.parse(cleanedContent);
+    let parsedResult;
+    try {
+      parsedResult = JSON.parse(cleanedContent);
+    } catch {
+      console.error('Failed to parse financial analysis');
+      return new Response(JSON.stringify({ error: 'Failed to process analysis. Please try again.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     console.log("Successfully parsed financial analysis");
 
@@ -218,8 +270,7 @@ Respond with this exact JSON structure:
 
   } catch (error) {
     console.error('Error in analyze-financials:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: 'An error occurred. Please try again.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

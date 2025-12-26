@@ -5,38 +5,82 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// URL validation
+function validateUrl(url: unknown): { valid: boolean; sanitized?: string; error?: string } {
+  if (typeof url !== 'string' || !url.trim()) {
+    return { valid: false, error: 'URL is required' };
+  }
+
+  const sanitized = url.trim().slice(0, 2000);
+
+  try {
+    const parsed = new URL(sanitized);
+    
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { valid: false, error: 'Only HTTP/HTTPS URLs are allowed' };
+    }
+
+    // Block internal networks
+    const hostname = parsed.hostname.toLowerCase();
+    const blocked = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
+    if (blocked.includes(hostname) || hostname.startsWith('10.') || 
+        hostname.startsWith('192.168.') || hostname.startsWith('172.')) {
+      return { valid: false, error: 'Invalid URL' };
+    }
+
+    return { valid: true, sanitized };
+  } catch {
+    return { valid: false, error: 'Invalid URL format' };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { url } = await req.json();
-
-    if (!url) {
-      return new Response(JSON.stringify({ error: 'URL is required' }), {
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid request body', content: '' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    // Validate URL
+    const urlValidation = validateUrl(body.url);
+    if (!urlValidation.valid) {
+      return new Response(JSON.stringify({ error: urlValidation.error, content: '' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const url = urlValidation.sanitized!;
     console.log('Parsing pitch deck from:', url);
 
-    // For now, we'll use the AI to describe the PDF content
-    // In production, you'd use a proper PDF parser
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      console.error('LOVABLE_API_KEY not configured');
+      return new Response(JSON.stringify({ content: '' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Fetch the PDF to check it exists
     const pdfResponse = await fetch(url);
     if (!pdfResponse.ok) {
-      throw new Error('Failed to fetch PDF');
+      console.error('Failed to fetch PDF:', pdfResponse.status);
+      return new Response(JSON.stringify({ content: '' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Since we can't directly parse PDF in edge functions, we'll use AI to analyze it
-    // The AI model can process the PDF URL directly
+    // Use AI to analyze the PDF
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -81,10 +125,7 @@ Provide a comprehensive text summary of all content.`,
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      
-      // Return empty content on error - the DD will still work with other data
+      console.error('AI gateway error:', response.status);
       return new Response(JSON.stringify({ content: '' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -101,7 +142,6 @@ Provide a comprehensive text summary of all content.`,
 
   } catch (error) {
     console.error('Error in parse-pitch-deck function:', error);
-    // Return empty content on error
     return new Response(JSON.stringify({ content: '' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

@@ -6,17 +6,55 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Input validation
+function validateString(value: unknown, maxLength: number = 10000): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, maxLength);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { dealName, sector, websiteUrl, description, competitors } = await req.json();
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid request body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate inputs
+    const dealName = validateString(body.dealName, 200);
+    const sector = validateString(body.sector, 100);
+    const websiteUrl = validateString(body.websiteUrl, 2000);
+    const description = validateString(body.description, 5000);
+    
+    // Validate competitors array if provided
+    let competitors = null;
+    if (body.competitors && Array.isArray(body.competitors)) {
+      competitors = body.competitors.slice(0, 20);
+    }
+
+    if (!dealName) {
+      return new Response(JSON.stringify({ error: 'Deal name is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      console.error('LOVABLE_API_KEY not configured');
+      return new Response(JSON.stringify({ error: 'Service not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log('Analyzing keywords for:', dealName);
@@ -81,9 +119,19 @@ Include 10-15 primary keywords, 5-8 competitor keywords, and 5-7 opportunity gap
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status}`);
+      console.error('AI API error:', response.status);
+      
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      return new Response(JSON.stringify({ error: 'Analysis service temporarily unavailable' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const data = await response.json();
@@ -94,17 +142,25 @@ Include 10-15 primary keywords, 5-8 competitor keywords, and 5-7 opportunity gap
     if (cleanedContent.startsWith('```')) cleanedContent = cleanedContent.slice(3);
     if (cleanedContent.endsWith('```')) cleanedContent = cleanedContent.slice(0, -3);
     
-    const keywordIntelligence = JSON.parse(cleanedContent.trim());
+    let keywordIntelligence;
+    try {
+      keywordIntelligence = JSON.parse(cleanedContent.trim());
+    } catch {
+      console.error('Failed to parse keyword analysis');
+      return new Response(JSON.stringify({ error: 'Failed to process analysis. Please try again.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     console.log('Keyword analysis completed');
 
     return new Response(JSON.stringify({ keywordIntelligence }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Error in keyword-intelligence:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: 'An error occurred. Please try again.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

@@ -5,21 +5,54 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Input validation
+function validateString(value: unknown, maxLength: number = 50000): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, maxLength);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { dealName, dealUrl, dealDescription, scrapedContent, pitchDeckContent } = await req.json();
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid request body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate and sanitize inputs
+    const dealName = validateString(body.dealName, 200);
+    const dealUrl = validateString(body.dealUrl, 2000);
+    const dealDescription = validateString(body.dealDescription, 5000);
+    const scrapedContent = validateString(body.scrapedContent, 50000);
+    const pitchDeckContent = validateString(body.pitchDeckContent, 50000);
+
+    if (!dealName) {
+      return new Response(JSON.stringify({ error: 'Deal name is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     console.log('Generating enhanced DD for:', dealName);
-    console.log('Scraped content length:', scrapedContent?.length || 0);
-    console.log('Pitch deck content length:', pitchDeckContent?.length || 0);
+    console.log('Scraped content length:', scrapedContent.length);
+    console.log('Pitch deck content length:', pitchDeckContent.length);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      console.error('LOVABLE_API_KEY not configured');
+      return new Response(JSON.stringify({ error: 'Service not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const systemPrompt = `You are an expert venture capital analyst specializing in due diligence. You analyze startups and provide comprehensive investment analysis with peer comparisons, SWOT analysis, moat assessment, and investment success probability.
@@ -144,8 +177,7 @@ Provide a thorough VC-style due diligence analysis including:
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
+      console.error('AI gateway error:', response.status);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
@@ -154,12 +186,15 @@ Provide a thorough VC-style due diligence analysis including:
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: 'AI credits exhausted. Please add more credits.' }), {
+        return new Response(JSON.stringify({ error: 'Usage limit reached. Please try again later.' }), {
           status: 402,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      throw new Error(`AI gateway error: ${response.status}`);
+      return new Response(JSON.stringify({ error: 'Analysis service temporarily unavailable' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const data = await response.json();
@@ -170,7 +205,6 @@ Provide a thorough VC-style due diligence analysis including:
     // Parse the JSON response
     let ddResult;
     try {
-      // Try to extract JSON from the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         ddResult = JSON.parse(jsonMatch[0]);
@@ -178,9 +212,11 @@ Provide a thorough VC-style due diligence analysis including:
         throw new Error('No JSON found in response');
       }
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      console.error('Raw content:', content);
-      throw new Error('Failed to parse AI analysis');
+      console.error('Failed to parse AI response');
+      return new Response(JSON.stringify({ error: 'Failed to process analysis. Please try again.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log('Enhanced DD generated successfully');
@@ -191,8 +227,7 @@ Provide a thorough VC-style due diligence analysis including:
 
   } catch (error) {
     console.error('Error in generate-dd function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: 'An error occurred. Please try again.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
