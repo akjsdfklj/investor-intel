@@ -1,9 +1,10 @@
-import { TrendingUp, Settings, Sparkles } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { TrendingUp, Settings, Sparkles, FileStack } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
 export function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
@@ -19,6 +20,15 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-3">
+          <Button
+            variant={location.pathname === '/bulk-dd' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => navigate('/bulk-dd')}
+            className="hidden sm:flex items-center gap-2"
+          >
+            <FileStack className="w-4 h-4" />
+            Bulk DD
+          </Button>
           <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
             <Sparkles className="w-4 h-4 text-primary" />
             <span>Lovable AI</span>

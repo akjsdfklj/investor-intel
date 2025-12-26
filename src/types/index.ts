@@ -370,3 +370,108 @@ export interface TechStackAnalysis {
   openSourceUsage: string[];
   securityScore: number;
 }
+
+// Enhanced Competitor Comparison Types
+export interface CompetitorProductFeature {
+  feature: string;
+  hasFeature: boolean;
+  notes: string;
+}
+
+export interface CompetitorPricingTier {
+  tier: string;
+  price: string;
+  features: string[];
+}
+
+export interface CompetitorExecutive {
+  name: string;
+  role: string;
+  background: string;
+}
+
+export interface CompetitorWinLoss {
+  winsAgainst: string[];
+  lossesAgainst: string[];
+  overlapScore: number;
+}
+
+export interface EnhancedCompetitor extends DetailedCompetitor {
+  marketShare: number | null;
+  burnRate: number | null;
+  recentNews: string[];
+  keyDifferentiators: string[];
+  productFeatures: CompetitorProductFeature[];
+  pricing: CompetitorPricingTier[];
+  techStack: string[];
+  executives: CompetitorExecutive[];
+  winLossAnalysis: CompetitorWinLoss;
+}
+
+export interface CompetitorComparison {
+  startupScore: number;
+  competitorScores: {
+    name: string;
+    score: number;
+  }[];
+  featureMatrix: {
+    feature: string;
+    startup: boolean;
+    competitors: { name: string; has: boolean }[];
+  }[];
+  pricingPosition: 'cheapest' | 'mid-range' | 'premium' | 'enterprise';
+  overallRanking: string[];
+}
+
+// Bulk Due Diligence Types
+export interface BulkDDSession {
+  id: string;
+  createdAt: string;
+  status: 'uploading' | 'processing' | 'ranking' | 'complete' | 'error';
+  startups: BulkStartupEntry[];
+  ranking?: BulkRanking;
+}
+
+export interface BulkStartupEntry {
+  id: string;
+  name: string;
+  sourceType: 'file' | 'url';
+  sourceUrl?: string;
+  fileName?: string;
+  status: 'pending' | 'parsing' | 'analyzing' | 'complete' | 'error';
+  progress: number;
+  pitchDeckContent?: string;
+  ddReport?: DDReport;
+  error?: string;
+}
+
+export interface BulkRankingEntry {
+  rank: 1 | 2 | 3;
+  startupId: string;
+  name: string;
+  overallScore: number;
+  reasoning: string;
+  keyStrengths: string[];
+  keyRisks: string[];
+}
+
+export interface BulkRankingItem {
+  rank: number;
+  startupId: string;
+  name: string;
+  score: number;
+  breakdown: {
+    team: number;
+    market: number;
+    product: number;
+    moat: number;
+    financials: number;
+  };
+}
+
+export interface BulkRanking {
+  top3: BulkRankingEntry[];
+  allRankings: BulkRankingItem[];
+  comparisonInsights: string;
+  investmentThesis: string;
+}

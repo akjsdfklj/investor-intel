@@ -33,3 +33,6 @@ verify_jwt = false
 
 [functions.keyword-intelligence]
 verify_jwt = false
+
+[functions.rank-startups]
+verify_jwt = false
