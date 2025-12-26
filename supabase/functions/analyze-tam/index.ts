@@ -6,17 +6,51 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Input validation
+function validateString(value: unknown, maxLength: number = 10000): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, maxLength);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { dealName, sector, geography, description, claimedTAM, scrapedContent } = await req.json();
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid request body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate inputs
+    const dealName = validateString(body.dealName, 200);
+    const sector = validateString(body.sector, 100);
+    const geography = validateString(body.geography, 100);
+    const description = validateString(body.description, 5000);
+    const claimedTAM = validateString(body.claimedTAM, 500);
+    const scrapedContent = validateString(body.scrapedContent, 10000);
+
+    if (!dealName) {
+      return new Response(JSON.stringify({ error: 'Deal name is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      console.error('LOVABLE_API_KEY not configured');
+      return new Response(JSON.stringify({ error: 'Service not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log('Analyzing TAM for:', dealName);
@@ -74,9 +108,19 @@ You MUST respond with valid JSON only (no markdown, no code blocks):
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status}`);
+      console.error('AI API error:', response.status);
+      
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      return new Response(JSON.stringify({ error: 'Analysis service temporarily unavailable' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const data = await response.json();
@@ -94,17 +138,25 @@ You MUST respond with valid JSON only (no markdown, no code blocks):
       cleanedContent = cleanedContent.slice(0, -3);
     }
     
-    const tamAnalysis = JSON.parse(cleanedContent.trim());
+    let tamAnalysis;
+    try {
+      tamAnalysis = JSON.parse(cleanedContent.trim());
+    } catch {
+      console.error('Failed to parse TAM analysis');
+      return new Response(JSON.stringify({ error: 'Failed to process analysis. Please try again.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     console.log('TAM analysis completed successfully');
 
     return new Response(JSON.stringify({ tamAnalysis }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Error in analyze-tam:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: 'An error occurred. Please try again.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

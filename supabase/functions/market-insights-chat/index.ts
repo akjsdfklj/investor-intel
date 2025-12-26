@@ -6,17 +6,61 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Input validation
+function validateString(value: unknown, maxLength: number = 10000): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, maxLength);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { question, dealContext, chatHistory } = await req.json();
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid request body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate inputs
+    const question = validateString(body.question, 2000);
+    
+    if (!question) {
+      return new Response(JSON.stringify({ error: 'Question is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate dealContext object
+    let dealContext = {};
+    if (body.dealContext && typeof body.dealContext === 'object') {
+      dealContext = body.dealContext;
+    }
+
+    // Validate chatHistory array - limit to last 10 messages
+    let chatHistory: any[] = [];
+    if (body.chatHistory && Array.isArray(body.chatHistory)) {
+      chatHistory = body.chatHistory.slice(-10).map((msg: any) => ({
+        role: typeof msg.role === 'string' ? msg.role : 'user',
+        content: validateString(msg.content, 5000)
+      }));
+    }
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      console.error('LOVABLE_API_KEY not configured');
+      return new Response(JSON.stringify({ error: 'Service not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log('Processing market insight question:', question);
@@ -43,10 +87,7 @@ Format your response as JSON:
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...(chatHistory || []).map((msg: any) => ({
-        role: msg.role,
-        content: msg.content
-      })),
+      ...chatHistory,
       { role: 'user', content: question }
     ];
 
@@ -64,6 +105,8 @@ Format your response as JSON:
     });
 
     if (!response.ok) {
+      console.error('AI API error:', response.status);
+      
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
           status: 429,
@@ -71,21 +114,24 @@ Format your response as JSON:
         });
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: 'Usage limit reached. Please add credits.' }), {
+        return new Response(JSON.stringify({ error: 'Usage limit reached. Please try again later.' }), {
           status: 402,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      throw new Error(`AI API error: ${response.status}`);
+      
+      return new Response(JSON.stringify({ error: 'Service temporarily unavailable' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     return new Response(response.body, {
       headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Error in market-insights-chat:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: 'An error occurred. Please try again.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
