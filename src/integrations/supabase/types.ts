@@ -73,6 +73,42 @@ export type Database = {
           },
         ]
       }
+      deal_sources: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          name: string
+          source_type: string
+          sync_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          name: string
+          source_type: string
+          sync_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          name?: string
+          source_type?: string
+          sync_status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       deals: {
         Row: {
           created_at: string
@@ -135,6 +171,431 @@ export type Database = {
           submitted_at?: string
         }
         Relationships: []
+      }
+      founder_portal_access: {
+        Row: {
+          access_token: string | null
+          company_id: string
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean | null
+          last_login_at: string | null
+          token_expires_at: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          company_id: string
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean | null
+          last_login_at?: string | null
+          token_expires_at?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          company_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean | null
+          last_login_at?: string | null
+          token_expires_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "founder_portal_access_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "portfolio_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fund_transactions: {
+        Row: {
+          amount: number
+          company_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          transaction_date: string
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          company_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_date: string
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_date?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "portfolio_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ic_reviews: {
+        Row: {
+          comments: string | null
+          created_at: string
+          deal_id: string
+          id: string
+          reviewer_name: string
+          vote: string
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string
+          deal_id: string
+          id?: string
+          reviewer_name: string
+          vote: string
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string
+          deal_id?: string
+          id?: string
+          reviewer_name?: string
+          vote?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ic_reviews_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_deals: {
+        Row: {
+          ask_amount: number | null
+          assigned_to: string | null
+          created_at: string
+          dd_report_id: string | null
+          description: string | null
+          founder_email: string | null
+          founder_name: string | null
+          id: string
+          name: string
+          pitch_deck_content: string | null
+          pitch_deck_url: string | null
+          priority: number | null
+          sector: string | null
+          source_id: string | null
+          source_type: string | null
+          stage: string
+          stage_entered_at: string | null
+          updated_at: string
+          valuation: number | null
+          website_url: string | null
+        }
+        Insert: {
+          ask_amount?: number | null
+          assigned_to?: string | null
+          created_at?: string
+          dd_report_id?: string | null
+          description?: string | null
+          founder_email?: string | null
+          founder_name?: string | null
+          id?: string
+          name: string
+          pitch_deck_content?: string | null
+          pitch_deck_url?: string | null
+          priority?: number | null
+          sector?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          stage?: string
+          stage_entered_at?: string | null
+          updated_at?: string
+          valuation?: number | null
+          website_url?: string | null
+        }
+        Update: {
+          ask_amount?: number | null
+          assigned_to?: string | null
+          created_at?: string
+          dd_report_id?: string | null
+          description?: string | null
+          founder_email?: string | null
+          founder_name?: string | null
+          id?: string
+          name?: string
+          pitch_deck_content?: string | null
+          pitch_deck_url?: string | null
+          priority?: number | null
+          sector?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          stage?: string
+          stage_entered_at?: string | null
+          updated_at?: string
+          valuation?: number | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      portfolio_companies: {
+        Row: {
+          created_at: string
+          current_valuation: number | null
+          deal_id: string | null
+          founder_email: string | null
+          founder_name: string | null
+          id: string
+          investment_amount: number
+          investment_date: string
+          name: string
+          notes: string | null
+          ownership_percentage: number | null
+          sector: string | null
+          status: string | null
+          updated_at: string
+          valuation_at_investment: number | null
+          website_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_valuation?: number | null
+          deal_id?: string | null
+          founder_email?: string | null
+          founder_name?: string | null
+          id?: string
+          investment_amount: number
+          investment_date: string
+          name: string
+          notes?: string | null
+          ownership_percentage?: number | null
+          sector?: string | null
+          status?: string | null
+          updated_at?: string
+          valuation_at_investment?: number | null
+          website_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_valuation?: number | null
+          deal_id?: string | null
+          founder_email?: string | null
+          founder_name?: string | null
+          id?: string
+          investment_amount?: number
+          investment_date?: string
+          name?: string
+          notes?: string | null
+          ownership_percentage?: number | null
+          sector?: string | null
+          status?: string | null
+          updated_at?: string
+          valuation_at_investment?: number | null
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_companies_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolio_kpis: {
+        Row: {
+          arr: number | null
+          burn_rate: number | null
+          churn_rate: number | null
+          company_id: string
+          created_at: string
+          customers: number | null
+          headcount: number | null
+          id: string
+          mrr: number | null
+          notes: string | null
+          nps_score: number | null
+          period_date: string
+          period_type: string
+          revenue: number | null
+          runway_months: number | null
+          submitted_by: string | null
+        }
+        Insert: {
+          arr?: number | null
+          burn_rate?: number | null
+          churn_rate?: number | null
+          company_id: string
+          created_at?: string
+          customers?: number | null
+          headcount?: number | null
+          id?: string
+          mrr?: number | null
+          notes?: string | null
+          nps_score?: number | null
+          period_date: string
+          period_type: string
+          revenue?: number | null
+          runway_months?: number | null
+          submitted_by?: string | null
+        }
+        Update: {
+          arr?: number | null
+          burn_rate?: number | null
+          churn_rate?: number | null
+          company_id?: string
+          created_at?: string
+          customers?: number | null
+          headcount?: number | null
+          id?: string
+          mrr?: number | null
+          notes?: string | null
+          nps_score?: number | null
+          period_date?: string
+          period_type?: string
+          revenue?: number | null
+          runway_months?: number | null
+          submitted_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_kpis_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "portfolio_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      screening_notes: {
+        Row: {
+          created_at: string
+          deal_id: string
+          decision: string | null
+          id: string
+          market_score: number | null
+          notes: string | null
+          product_score: number | null
+          team_score: number | null
+          timing_score: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          decision?: string | null
+          id?: string
+          market_score?: number | null
+          notes?: string | null
+          product_score?: number | null
+          team_score?: number | null
+          timing_score?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          decision?: string | null
+          id?: string
+          market_score?: number | null
+          notes?: string | null
+          product_score?: number | null
+          team_score?: number | null
+          timing_score?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "screening_notes_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      term_sheets: {
+        Row: {
+          created_at: string
+          deal_id: string
+          discount_rate: number | null
+          google_doc_id: string | null
+          google_doc_url: string | null
+          id: string
+          investment_amount: number | null
+          opened_at: string | null
+          pro_rata_rights: boolean | null
+          recipient_email: string | null
+          sent_at: string | null
+          signed_at: string | null
+          status: string | null
+          template_type: string | null
+          updated_at: string
+          valuation_cap: number | null
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          discount_rate?: number | null
+          google_doc_id?: string | null
+          google_doc_url?: string | null
+          id?: string
+          investment_amount?: number | null
+          opened_at?: string | null
+          pro_rata_rights?: boolean | null
+          recipient_email?: string | null
+          sent_at?: string | null
+          signed_at?: string | null
+          status?: string | null
+          template_type?: string | null
+          updated_at?: string
+          valuation_cap?: number | null
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          discount_rate?: number | null
+          google_doc_id?: string | null
+          google_doc_url?: string | null
+          id?: string
+          investment_amount?: number | null
+          opened_at?: string | null
+          pro_rata_rights?: boolean | null
+          recipient_email?: string | null
+          sent_at?: string | null
+          signed_at?: string | null
+          status?: string | null
+          template_type?: string | null
+          updated_at?: string
+          valuation_cap?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "term_sheets_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_deals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
