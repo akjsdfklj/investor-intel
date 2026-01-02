@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import DealDetail from "./pages/DealDetail";
 import Settings from "./pages/Settings";
 import BulkDueDiligence from "./pages/BulkDueDiligence";
+import PipelineDashboard from "./pages/PipelineDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/deal/:dealId" element={<DealDetail />} />
           <Route path="/bulk-dd" element={<BulkDueDiligence />} />
+          <Route path="/pipeline" element={<PipelineDashboard />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

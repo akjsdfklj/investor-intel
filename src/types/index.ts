@@ -475,3 +475,68 @@ export interface BulkRanking {
   comparisonInsights: string;
   investmentThesis: string;
 }
+
+// Pipeline Stage Constants
+export const PIPELINE_STAGES = [
+  'sourcing', 'screening', 'dd', 'ic_review', 'term_sheet', 'closed', 'passed'
+] as const;
+
+export type PipelineStage = typeof PIPELINE_STAGES[number];
+
+// Pipeline Deal Type (mirrors database)
+export interface PipelineDeal {
+  id: string;
+  name: string;
+  websiteUrl?: string;
+  description?: string;
+  stage: PipelineStage;
+  stageEnteredAt: string;
+  priority: number; // 1-3 (1=high, 3=low)
+  sector?: string;
+  sourceType: 'manual' | 'airtable' | 'gforms' | 'bulk_dd';
+  sourceId?: string;
+  founderName?: string;
+  founderEmail?: string;
+  pitchDeckUrl?: string;
+  pitchDeckContent?: string;
+  askAmount?: number;
+  valuation?: number;
+  assignedTo?: string;
+  ddReportId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Stage Display Config
+export interface StageConfig {
+  key: PipelineStage;
+  label: string;
+  color: string;
+  bgColor: string;
+  icon: string;
+}
+
+export const STAGE_CONFIGS: StageConfig[] = [
+  { key: 'sourcing', label: 'Sourcing', color: 'hsl(217, 91%, 60%)', bgColor: 'hsl(217, 91%, 95%)', icon: 'inbox' },
+  { key: 'screening', label: 'Screening', color: 'hsl(45, 93%, 47%)', bgColor: 'hsl(45, 93%, 95%)', icon: 'filter' },
+  { key: 'dd', label: 'Due Diligence', color: 'hsl(263, 70%, 50%)', bgColor: 'hsl(263, 70%, 95%)', icon: 'search' },
+  { key: 'ic_review', label: 'IC Review', color: 'hsl(25, 95%, 53%)', bgColor: 'hsl(25, 95%, 95%)', icon: 'users' },
+  { key: 'term_sheet', label: 'Term Sheet', color: 'hsl(187, 92%, 41%)', bgColor: 'hsl(187, 92%, 95%)', icon: 'file-text' },
+  { key: 'closed', label: 'Closed', color: 'hsl(142, 71%, 45%)', bgColor: 'hsl(142, 71%, 95%)', icon: 'check-circle' },
+  { key: 'passed', label: 'Passed', color: 'hsl(220, 9%, 46%)', bgColor: 'hsl(220, 9%, 95%)', icon: 'x-circle' },
+];
+
+// Integration Settings
+export interface IntegrationSettings {
+  airtable?: {
+    apiKey: string;
+    baseId: string;
+  };
+  google?: {
+    serviceAccountJson: string;
+  };
+  resend?: {
+    apiKey: string;
+    fromEmail: string;
+  };
+}
