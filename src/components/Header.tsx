@@ -1,4 +1,4 @@
-import { TrendingUp, Settings, Sparkles, FileStack, Kanban } from 'lucide-react';
+import { TrendingUp, Settings, Sparkles, FileStack, Kanban, Briefcase } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -28,6 +28,15 @@ export function Header() {
           >
             <Kanban className="w-4 h-4" />
             Pipeline
+          </Button>
+          <Button
+            variant={location.pathname === '/portfolio' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => navigate('/portfolio')}
+            className="hidden sm:flex items-center gap-2"
+          >
+            <Briefcase className="w-4 h-4" />
+            Portfolio
           </Button>
           <Button
             variant={location.pathname === '/bulk-dd' ? 'secondary' : 'ghost'}
