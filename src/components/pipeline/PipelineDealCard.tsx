@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { ExternalLink, Star, MoreVertical, Trash2, ArrowRight } from 'lucide-react';
-import { PipelineDeal, PipelineStage, STAGE_CONFIGS } from '@/types';
+import { ExternalLink, Star, MoreVertical, Trash2, ArrowRight, FileText, CheckCircle } from 'lucide-react';
+import { PipelineDeal, PipelineStage, STAGE_CONFIGS, TermSheet } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,6 +12,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { TermSheetStatusBadge } from '@/components/term-sheets/TermSheetStatusBadge';
+import { TermSheetGenerator } from '@/components/term-sheets/TermSheetGenerator';
+import { FinalizeToPortfolioDialog } from '@/components/term-sheets/FinalizeToPortfolioDialog';
 
 interface PipelineDealCardProps {
   deal: PipelineDeal;
@@ -18,6 +22,7 @@ interface PipelineDealCardProps {
   onDelete: (dealId: string) => void;
   onMoveToStage: (dealId: string, stage: PipelineStage) => void;
   onClick?: (deal: PipelineDeal) => void;
+  termSheet?: TermSheet;
 }
 
 export function PipelineDealCard({
@@ -26,7 +31,11 @@ export function PipelineDealCard({
   onDelete,
   onMoveToStage,
   onClick,
+  termSheet,
 }: PipelineDealCardProps) {
+  const [showTermSheetModal, setShowTermSheetModal] = useState(false);
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+
   const currentStageIndex = STAGE_CONFIGS.findIndex(s => s.key === deal.stage);
   const nextStage = STAGE_CONFIGS[currentStageIndex + 1];
 
@@ -59,90 +68,136 @@ export function PipelineDealCard({
     return days === 0 ? 'Today' : `${days}d`;
   };
 
+  const handleFinalize = () => {
+    setShowTermSheetModal(false);
+    setShowFinalizeModal(true);
+  };
+
   return (
-    <Draggable draggableId={deal.id} index={index}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          className={cn(
-            'bg-card border border-border rounded-lg p-3 mb-2 cursor-grab active:cursor-grabbing transition-all',
-            snapshot.isDragging && 'shadow-lg rotate-2 scale-105',
-            'hover:border-primary/30 hover:shadow-sm'
-          )}
-          onClick={() => onClick?.(deal)}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h4 className="font-medium text-sm truncate">{deal.name}</h4>
-                {deal.websiteUrl && (
-                  <a
-                    href={deal.websiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-muted-foreground hover:text-primary"
+    <>
+      <Draggable draggableId={deal.id} index={index}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            className={cn(
+              'bg-card border border-border rounded-lg p-3 mb-2 cursor-grab active:cursor-grabbing transition-all',
+              snapshot.isDragging && 'shadow-lg rotate-2 scale-105',
+              'hover:border-primary/30 hover:shadow-sm'
+            )}
+            onClick={() => onClick?.(deal)}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-medium text-sm truncate">{deal.name}</h4>
+                  {deal.websiteUrl && (
+                    <a
+                      href={deal.websiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-muted-foreground hover:text-primary"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2 mt-1">
+                  {deal.sector && (
+                    <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                      {deal.sector}
+                    </Badge>
+                  )}
+                  <div className="flex">{getPriorityStars(deal.priority)}</div>
+                </div>
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <MoreVertical className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {deal.stage === 'term_sheet' && (
+                    <>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShowTermSheetModal(true); }}>
+                        <FileText className="w-4 h-4 mr-2" />
+                        {termSheet ? 'View Term Sheet' : 'Generate Term Sheet'}
+                      </DropdownMenuItem>
+                      {termSheet?.status === 'signed' && (
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShowFinalizeModal(true); }}>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Finalize to Portfolio
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  {nextStage && deal.stage !== 'closed' && deal.stage !== 'passed' && (
+                    <DropdownMenuItem onClick={() => onMoveToStage(deal.id, nextStage.key)}>
+                      <ArrowRight className="w-4 h-4 mr-2" />
+                      Move to {nextStage.label}
+                    </DropdownMenuItem>
+                  )}
+                  {deal.stage !== 'passed' && (
+                    <DropdownMenuItem onClick={() => onMoveToStage(deal.id, 'passed')}>
+                      Pass
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => onDelete(deal.id)}
+                    className="text-destructive"
                   >
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-              </div>
-              
-              <div className="flex items-center gap-2 mt-1">
-                {deal.sector && (
-                  <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                    {deal.sector}
-                  </Badge>
-                )}
-                <div className="flex">{getPriorityStars(deal.priority)}</div>
-              </div>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
-                  <MoreVertical className="w-3 h-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {nextStage && deal.stage !== 'closed' && deal.stage !== 'passed' && (
-                  <DropdownMenuItem onClick={() => onMoveToStage(deal.id, nextStage.key)}>
-                    <ArrowRight className="w-4 h-4 mr-2" />
-                    Move to {nextStage.label}
-                  </DropdownMenuItem>
+            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                {deal.founderName && <span>{deal.founderName}</span>}
+                {deal.askAmount && (
+                  <span className="text-primary font-medium">
+                    {formatCurrency(deal.askAmount)}
+                  </span>
                 )}
-                {deal.stage !== 'passed' && (
-                  <DropdownMenuItem onClick={() => onMoveToStage(deal.id, 'passed')}>
-                    Pass
-                  </DropdownMenuItem>
+              </div>
+              <div className="flex items-center gap-2">
+                {deal.stage === 'term_sheet' && termSheet && (
+                  <TermSheetStatusBadge status={termSheet.status} />
                 )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => onDelete(deal.id)}
-                  className="text-destructive"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              {deal.founderName && <span>{deal.founderName}</span>}
-              {deal.askAmount && (
-                <span className="text-primary font-medium">
-                  {formatCurrency(deal.askAmount)}
-                </span>
-              )}
+                <span>{getDaysInStage()}</span>
+              </div>
             </div>
-            <span>{getDaysInStage()}</span>
           </div>
-        </div>
+        )}
+      </Draggable>
+
+      {showTermSheetModal && (
+        <TermSheetGenerator
+          open={showTermSheetModal}
+          onOpenChange={setShowTermSheetModal}
+          deal={deal}
+          existingTermSheet={termSheet}
+          onFinalize={handleFinalize}
+        />
       )}
-    </Draggable>
+
+      {showFinalizeModal && (
+        <FinalizeToPortfolioDialog
+          open={showFinalizeModal}
+          onOpenChange={setShowFinalizeModal}
+          deal={deal}
+          termSheet={termSheet}
+        />
+      )}
+    </>
   );
 }

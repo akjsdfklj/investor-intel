@@ -36,3 +36,9 @@ verify_jwt = false
 
 [functions.rank-startups]
 verify_jwt = false
+
+[functions.generate-term-sheet]
+verify_jwt = false
+
+[functions.send-term-sheet]
+verify_jwt = false

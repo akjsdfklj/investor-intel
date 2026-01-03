@@ -540,3 +540,69 @@ export interface IntegrationSettings {
     fromEmail: string;
   };
 }
+
+// Term Sheet Types
+export type TermSheetStatus = 'draft' | 'sent' | 'opened' | 'signed';
+export type TermSheetTemplate = 'safe' | 'convertible_note' | 'equity';
+
+export interface TermSheet {
+  id: string;
+  dealId: string;
+  templateType: TermSheetTemplate;
+  investmentAmount: number | null;
+  valuationCap: number | null;
+  discountRate: number | null;
+  proRataRights: boolean;
+  googleDocId?: string;
+  googleDocUrl?: string;
+  status: TermSheetStatus;
+  recipientEmail?: string;
+  sentAt?: string;
+  openedAt?: string;
+  signedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Portfolio Types
+export type PortfolioStatus = 'active' | 'exited' | 'written_off';
+
+export interface PortfolioCompany {
+  id: string;
+  dealId?: string;
+  name: string;
+  sector?: string;
+  websiteUrl?: string;
+  founderName?: string;
+  founderEmail?: string;
+  investmentDate: string;
+  investmentAmount: number;
+  ownershipPercentage?: number;
+  valuationAtInvestment?: number;
+  currentValuation?: number;
+  status: PortfolioStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type KPIPeriodType = 'weekly' | 'monthly' | 'quarterly';
+
+export interface PortfolioKPI {
+  id: string;
+  companyId: string;
+  periodType: KPIPeriodType;
+  periodDate: string;
+  revenue?: number;
+  mrr?: number;
+  arr?: number;
+  customers?: number;
+  burnRate?: number;
+  runwayMonths?: number;
+  churnRate?: number;
+  headcount?: number;
+  npsScore?: number;
+  notes?: string;
+  submittedBy?: string;
+  createdAt: string;
+}
