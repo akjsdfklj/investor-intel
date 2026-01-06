@@ -10,6 +10,8 @@ import BulkDueDiligence from "./pages/BulkDueDiligence";
 import PipelineDashboard from "./pages/PipelineDashboard";
 import Portfolio from "./pages/Portfolio";
 import PortfolioCompanyDetail from "./pages/PortfolioCompanyDetail";
+import DealSources from "./pages/DealSources";
+import TermSheets from "./pages/TermSheets";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,8 @@ const App = () => (
           <Route path="/pipeline" element={<PipelineDashboard />} />
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/portfolio/:companyId" element={<PortfolioCompanyDetail />} />
+          <Route path="/deal-sources" element={<DealSources />} />
+          <Route path="/term-sheets" element={<TermSheets />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
