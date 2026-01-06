@@ -606,3 +606,71 @@ export interface PortfolioKPI {
   submittedBy?: string;
   createdAt: string;
 }
+
+// Deal Source Types
+export type DealSourceType = 'airtable' | 'gsheets';
+export type SyncStatus = 'pending' | 'syncing' | 'success' | 'error';
+
+export interface FieldMapping {
+  name?: string;
+  website_url?: string;
+  description?: string;
+  founder_name?: string;
+  founder_email?: string;
+  sector?: string;
+  ask_amount?: string;
+  valuation?: string;
+}
+
+export interface AirtableConfig {
+  baseId: string;
+  tableName: string;
+  viewName?: string;
+  fieldMapping: FieldMapping;
+}
+
+export interface GSheetsConfig {
+  sheetId: string;
+  sheetName: string;
+  headerRow: number;
+  fieldMapping: FieldMapping;
+}
+
+export interface DealSource {
+  id: string;
+  name: string;
+  sourceType: DealSourceType;
+  config: AirtableConfig | GSheetsConfig;
+  isActive: boolean;
+  syncStatus: SyncStatus;
+  lastSyncAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SyncResult {
+  sourceId: string;
+  syncedAt: string;
+  dealsCreated: number;
+  dealsUpdated: number;
+  dealsFailed: number;
+  errors: string[];
+}
+
+// AI Term Sheet Types
+export interface AITermSheetRecommendation {
+  suggestedTemplate: TermSheetTemplate;
+  templateReason: string;
+  valuationRange: { min: number; max: number };
+  suggestedDiscount: number;
+  suggestedClauses: AIClauseSuggestion[];
+  riskFactors: string[];
+  comparableDeals: string[];
+}
+
+export interface AIClauseSuggestion {
+  clause: string;
+  reason: string;
+  priority: 'required' | 'recommended' | 'optional';
+  riskMitigation?: string;
+}

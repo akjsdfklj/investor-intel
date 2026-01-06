@@ -1,4 +1,4 @@
-import { TrendingUp, Settings, Sparkles, FileStack, Kanban, Briefcase } from 'lucide-react';
+import { TrendingUp, Settings, Sparkles, FileStack, Kanban, Briefcase, Database, FileText } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -19,7 +19,7 @@ export function Header() {
           <span className="text-xl font-bold gradient-text">AI VC DD Copilot</span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button
             variant={location.pathname === '/pipeline' ? 'secondary' : 'ghost'}
             size="sm"
@@ -28,6 +28,24 @@ export function Header() {
           >
             <Kanban className="w-4 h-4" />
             Pipeline
+          </Button>
+          <Button
+            variant={location.pathname === '/deal-sources' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => navigate('/deal-sources')}
+            className="hidden md:flex items-center gap-2"
+          >
+            <Database className="w-4 h-4" />
+            Sources
+          </Button>
+          <Button
+            variant={location.pathname === '/term-sheets' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => navigate('/term-sheets')}
+            className="hidden md:flex items-center gap-2"
+          >
+            <FileText className="w-4 h-4" />
+            Term Sheets
           </Button>
           <Button
             variant={location.pathname === '/portfolio' ? 'secondary' : 'ghost'}
@@ -42,12 +60,12 @@ export function Header() {
             variant={location.pathname === '/bulk-dd' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => navigate('/bulk-dd')}
-            className="hidden sm:flex items-center gap-2"
+            className="hidden lg:flex items-center gap-2"
           >
             <FileStack className="w-4 h-4" />
             Bulk DD
           </Button>
-          <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+          <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
             <Sparkles className="w-4 h-4 text-primary" />
             <span>Lovable AI</span>
           </div>
