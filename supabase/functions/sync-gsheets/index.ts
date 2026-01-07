@@ -12,9 +12,56 @@ interface SyncRequest {
 
 interface GSheetsConfig {
   sheetId: string;
-  sheetName: string;
-  headerRow: number;
+  sheetName?: string;
+  headerRow?: number;
   fieldMapping: Record<string, string>;
+}
+
+function extractSheetId(urlOrId: string): string {
+  if (!urlOrId.includes('/')) {
+    return urlOrId;
+  }
+  const match = urlOrId.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : urlOrId;
+}
+
+function parseCSV(csvText: string): Record<string, string>[] {
+  const lines = csvText.split('\n').filter(line => line.trim());
+  if (lines.length < 2) return [];
+
+  const parseRow = (row: string): string[] => {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < row.length; i++) {
+      const char = row[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim().replace(/^"|"$/g, ''));
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim().replace(/^"|"$/g, ''));
+    return values;
+  };
+
+  const headers = parseRow(lines[0]);
+  const rows: Record<string, string>[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseRow(lines[i]);
+    const row: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] || '';
+    });
+    rows.push(row);
+  }
+
+  return rows;
 }
 
 serve(async (req) => {
@@ -25,17 +72,16 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    const { sourceId }: SyncRequest = await req.json();
 
-    if (!googleApiKey) {
+    if (!sourceId) {
       return new Response(
-        JSON.stringify({ error: 'Google API key not configured. Add GOOGLE_API_KEY to secrets.' }),
+        JSON.stringify({ error: 'Source ID is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    const { sourceId }: SyncRequest = await req.json();
 
     // Fetch source configuration
     const { data: source, error: sourceError } = await supabase
@@ -52,16 +98,17 @@ serve(async (req) => {
     }
 
     const config = source.config as GSheetsConfig;
-    const { sheetId, sheetName, headerRow, fieldMapping } = config;
+    const sheetId = extractSheetId(config.sheetId);
+    
+    console.log('Fetching Google Sheet:', sheetId);
 
-    // Fetch data from Google Sheets
-    const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}?key=${googleApiKey}`;
-
-    const sheetsResponse = await fetch(sheetsUrl);
+    // Fetch sheet data as CSV (works for public sheets without API key)
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+    
+    const sheetsResponse = await fetch(csvUrl);
 
     if (!sheetsResponse.ok) {
-      const errorText = await sheetsResponse.text();
-      console.error('Google Sheets API error:', errorText);
+      console.error('Google Sheets fetch error:', sheetsResponse.status, sheetsResponse.statusText);
       
       await supabase
         .from('deal_sources')
@@ -69,61 +116,103 @@ serve(async (req) => {
         .eq('id', sourceId);
 
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch from Google Sheets', details: errorText }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const sheetsData = await sheetsResponse.json();
-    const rows = sheetsData.values || [];
-
-    if (rows.length <= headerRow) {
-      return new Response(
-        JSON.stringify({ error: 'No data rows found in sheet' }),
+        JSON.stringify({ 
+          error: 'Failed to fetch Google Sheet. Make sure the sheet is publicly accessible (Anyone with the link can view).' 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get headers and create column index map
-    const headers = rows[headerRow - 1] || [];
-    const columnIndex: Record<string, number> = {};
-    headers.forEach((header: string, index: number) => {
-      columnIndex[header] = index;
-    });
+    const csvText = await sheetsResponse.text();
+    console.log('CSV data received, length:', csvText.length);
+    
+    const rows = parseCSV(csvText);
+    console.log('Parsed rows:', rows.length);
+
+    if (rows.length === 0) {
+      await supabase
+        .from('deal_sources')
+        .update({ sync_status: 'success', last_sync_at: new Date().toISOString() })
+        .eq('id', sourceId);
+      
+      return new Response(
+        JSON.stringify({ dealsCreated: 0, dealsUpdated: 0, dealsFailed: 0, errors: [], message: 'No data found in sheet' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Default field mapping based on common sheet structures
+    const fieldMapping = config.fieldMapping || {
+      name: 'Startup Name',
+      sector: 'Industry',
+      valuation: 'Valuation (USD)',
+      description: 'Key Product/Service',
+      pitch_deck_url: 'Pitch Deck (Link)',
+    };
 
     let dealsCreated = 0;
     let dealsUpdated = 0;
     let dealsFailed = 0;
     const errors: string[] = [];
 
-    // Process each data row (skip header)
-    for (let i = headerRow; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const rowId = `row_${i + 1}`; // Use row number as ID
+      const rowId = `row_${i + 2}`; // +2 because CSV is 0-indexed and we skip header
 
       try {
-        const getValue = (field: string | undefined) => {
-          if (!field) return null;
-          const idx = columnIndex[field];
-          return idx !== undefined ? row[idx] || null : null;
-        };
-
-        const name = getValue(fieldMapping.name);
-        if (!name) continue; // Skip rows without a name
+        // Get the startup name (required field)
+        const nameField = fieldMapping.name || 'Startup Name';
+        const name = row[nameField];
+        
+        if (!name || name.trim() === '') {
+          console.log('Skipping row without name');
+          continue;
+        }
 
         const dealData: Record<string, unknown> = {
-          name,
-          website_url: getValue(fieldMapping.website_url),
-          description: getValue(fieldMapping.description),
-          founder_name: getValue(fieldMapping.founder_name),
-          founder_email: getValue(fieldMapping.founder_email),
-          sector: getValue(fieldMapping.sector),
-          ask_amount: parseFloat(getValue(fieldMapping.ask_amount) || '') || null,
-          valuation: parseFloat(getValue(fieldMapping.valuation) || '') || null,
-          source_type: 'gforms', // Using gforms as it's more generic for Google sources
+          name: name.trim(),
+          source_type: 'gsheets',
           source_id: `${sheetId}_${rowId}`,
           stage: 'sourcing',
         };
+
+        // Map other fields
+        if (fieldMapping.sector && row[fieldMapping.sector]) {
+          dealData.sector = row[fieldMapping.sector];
+        }
+        if (fieldMapping.description && row[fieldMapping.description]) {
+          dealData.description = row[fieldMapping.description];
+        }
+        if (fieldMapping.website_url && row[fieldMapping.website_url]) {
+          const url = row[fieldMapping.website_url];
+          if (url.startsWith('http')) {
+            dealData.website_url = url;
+          }
+        }
+        if (fieldMapping.valuation && row[fieldMapping.valuation]) {
+          const valuation = parseFloat(row[fieldMapping.valuation].replace(/[^0-9.]/g, ''));
+          if (!isNaN(valuation)) {
+            dealData.valuation = valuation;
+          }
+        }
+        if (fieldMapping.ask_amount && row[fieldMapping.ask_amount]) {
+          const askAmount = parseFloat(row[fieldMapping.ask_amount].replace(/[^0-9.]/g, ''));
+          if (!isNaN(askAmount)) {
+            dealData.ask_amount = askAmount;
+          }
+        }
+        if (fieldMapping.pitch_deck_url && row[fieldMapping.pitch_deck_url]) {
+          const url = row[fieldMapping.pitch_deck_url];
+          if (url.startsWith('http')) {
+            dealData.pitch_deck_url = url;
+          }
+        }
+        if (fieldMapping.founder_email && row[fieldMapping.founder_email]) {
+          dealData.founder_email = row[fieldMapping.founder_email];
+        }
+        if (fieldMapping.founder_name && row[fieldMapping.founder_name]) {
+          dealData.founder_name = row[fieldMapping.founder_name];
+        }
 
         // Check if deal already exists
         const { data: existing } = await supabase
@@ -151,7 +240,8 @@ serve(async (req) => {
       } catch (error: unknown) {
         dealsFailed++;
         const message = error instanceof Error ? error.message : 'Unknown error';
-        errors.push(`Row ${i + 1}: ${message}`);
+        errors.push(`Row ${i + 2}: ${message}`);
+        console.error(`Error processing row ${i + 2}:`, error);
       }
     }
 
