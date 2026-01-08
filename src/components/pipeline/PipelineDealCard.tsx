@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { ExternalLink, Star, MoreVertical, Trash2, ArrowRight, FileText, CheckCircle } from 'lucide-react';
+import { ExternalLink, Star, MoreVertical, Trash2, ArrowRight, FileText, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
 import { PipelineDeal, PipelineStage, STAGE_CONFIGS, TermSheet } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ interface PipelineDealCardProps {
   onMoveToStage: (dealId: string, stage: PipelineStage) => void;
   onClick?: (deal: PipelineDeal) => void;
   termSheet?: TermSheet;
+  onGenerateDD?: (dealId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function PipelineDealCard({
@@ -32,9 +33,19 @@ export function PipelineDealCard({
   onMoveToStage,
   onClick,
   termSheet,
+  onGenerateDD,
 }: PipelineDealCardProps) {
   const [showTermSheetModal, setShowTermSheetModal] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [isGeneratingDD, setIsGeneratingDD] = useState(false);
+
+  const handleGenerateDD = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onGenerateDD || isGeneratingDD) return;
+    setIsGeneratingDD(true);
+    await onGenerateDD(deal.id);
+    setIsGeneratingDD(false);
+  };
 
   const currentStageIndex = STAGE_CONFIGS.findIndex(s => s.key === deal.stage);
   const nextStage = STAGE_CONFIGS[currentStageIndex + 1];
@@ -121,7 +132,20 @@ export function PipelineDealCard({
                     <MoreVertical className="w-3 h-3" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end">
+                  {deal.stage === 'dd' && onGenerateDD && (
+                    <>
+                      <DropdownMenuItem onClick={handleGenerateDD} disabled={isGeneratingDD}>
+                        {isGeneratingDD ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4 mr-2" />
+                        )}
+                        {isGeneratingDD ? 'Generating...' : (deal.ddReportId ? 'Regenerate DD' : 'Generate DD Report')}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   {deal.stage === 'term_sheet' && (
                     <>
                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShowTermSheetModal(true); }}>

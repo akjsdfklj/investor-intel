@@ -9,6 +9,7 @@ interface PipelineKanbanProps {
   onDealStageChange: (dealId: string, newStage: PipelineStage) => Promise<void>;
   onDeleteDeal: (dealId: string) => void;
   onDealClick?: (deal: PipelineDeal) => void;
+  onGenerateDD?: (dealId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function PipelineKanban({
@@ -17,6 +18,7 @@ export function PipelineKanban({
   onDealStageChange,
   onDeleteDeal,
   onDealClick,
+  onGenerateDD,
 }: PipelineKanbanProps) {
   // Filter deals based on active filters
   const filteredDeals = deals.filter((deal) => {
@@ -75,6 +77,7 @@ export function PipelineKanban({
               onDeleteDeal={onDeleteDeal}
               onMoveToStage={handleMoveToStage}
               onDealClick={onDealClick}
+              onGenerateDD={onGenerateDD}
             />
           ))}
         </div>
@@ -93,6 +96,7 @@ export function PipelineKanban({
                 onDeleteDeal={onDeleteDeal}
                 onMoveToStage={handleMoveToStage}
                 onDealClick={onDealClick}
+                onGenerateDD={onGenerateDD}
               />
             ))}
           </div>
