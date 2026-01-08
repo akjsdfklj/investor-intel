@@ -210,6 +210,103 @@ export function usePipelineDeals() {
     return deals.filter(d => d.stage === stage);
   };
 
+  // Generate DD report for a deal
+  const generateDDForDeal = async (dealId: string) => {
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) {
+      toast({
+        title: 'Error',
+        description: 'Deal not found',
+        variant: 'destructive',
+      });
+      return { success: false, error: 'Deal not found' };
+    }
+
+    try {
+      // Step 1: Scrape website if URL exists
+      let scrapedContent = '';
+      if (deal.websiteUrl) {
+        console.log('Scraping website:', deal.websiteUrl);
+        const { data: scrapeData, error: scrapeError } = await supabase.functions.invoke('scrape-website', {
+          body: { url: deal.websiteUrl }
+        });
+        if (!scrapeError && scrapeData?.markdown) {
+          scrapedContent = scrapeData.markdown;
+        }
+      }
+
+      // Step 2: Generate DD report using AI
+      console.log('Generating DD report for:', deal.name);
+      const { data: ddData, error: ddError } = await supabase.functions.invoke('generate-dd', {
+        body: {
+          dealName: deal.name,
+          dealUrl: deal.websiteUrl || '',
+          dealDescription: deal.description || '',
+          scrapedContent,
+          pitchDeckContent: deal.pitchDeckContent || ''
+        }
+      });
+
+      if (ddError) {
+        throw new Error(ddError.message || 'Failed to generate DD report');
+      }
+
+      if (ddData?.error) {
+        throw new Error(ddData.error);
+      }
+
+      // Step 3: Save DD report to database
+      const { data: report, error: insertError } = await supabase
+        .from('dd_reports')
+        .insert({
+          deal_id: dealId,
+          summary: ddData.summary || '',
+          team_score: ddData.team_score || ddData.scores?.team?.score,
+          team_reason: ddData.team_reason || ddData.scores?.team?.reason,
+          market_score: ddData.market_score || ddData.scores?.market?.score,
+          market_reason: ddData.market_reason || ddData.scores?.market?.reason,
+          product_score: ddData.product_score || ddData.scores?.product?.score,
+          product_reason: ddData.product_reason || ddData.scores?.product?.reason,
+          moat_score: ddData.moat_score || ddData.scores?.moat?.score,
+          moat_reason: ddData.moat_reason || ddData.scores?.moat?.reason,
+          follow_up_questions: ddData.follow_up_questions || ddData.followUpQuestions,
+          scraped_content: scrapedContent,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      // Step 4: Link DD report to the deal
+      await supabase
+        .from('pipeline_deals')
+        .update({ dd_report_id: report.id })
+        .eq('id', dealId);
+
+      // Update local state
+      setDeals(prev =>
+        prev.map(d => (d.id === dealId ? { ...d, ddReportId: report.id } : d))
+      );
+
+      toast({
+        title: 'DD Report Generated',
+        description: `Due diligence report created for ${deal.name}`,
+      });
+
+      return { success: true, report };
+    } catch (error: any) {
+      console.error('Error generating DD report:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to generate DD report',
+        variant: 'destructive',
+      });
+      return { success: false, error: error.message };
+    }
+  };
+
   // Setup realtime subscription
   useEffect(() => {
     fetchDeals();
@@ -248,6 +345,7 @@ export function usePipelineDeals() {
     updateDealStage,
     deleteDeal,
     getDealsByStage,
+    generateDDForDeal,
     refetch: fetchDeals,
   };
 }

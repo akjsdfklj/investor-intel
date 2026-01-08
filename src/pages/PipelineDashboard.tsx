@@ -9,7 +9,7 @@ import { Plus, Loader2, RefreshCw } from 'lucide-react';
 import { STAGE_CONFIGS, PipelineStage } from '@/types';
 
 export default function PipelineDashboard() {
-  const { deals, isLoading, createDeal, updateDealStage, deleteDeal, refetch } =
+  const { deals, isLoading, createDeal, updateDealStage, deleteDeal, generateDDForDeal, refetch } =
     usePipelineDeals();
   const [showAddForm, setShowAddForm] = useState(false);
   const [filters, setFilters] = useState<PipelineFiltersState>({
@@ -90,6 +90,7 @@ export default function PipelineDashboard() {
             filters={filters}
             onDealStageChange={handleStageChange}
             onDeleteDeal={handleDeleteDeal}
+            onGenerateDD={generateDDForDeal}
           />
         )}
       </main>

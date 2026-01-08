@@ -10,6 +10,7 @@ interface StageColumnProps {
   onDeleteDeal: (dealId: string) => void;
   onMoveToStage: (dealId: string, stage: PipelineStage) => void;
   onDealClick?: (deal: PipelineDeal) => void;
+  onGenerateDD?: (dealId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -28,6 +29,7 @@ export function StageColumn({
   onDeleteDeal,
   onMoveToStage,
   onDealClick,
+  onGenerateDD,
 }: StageColumnProps) {
   return (
     <div className="flex flex-col min-w-[280px] max-w-[320px] bg-muted/30 rounded-lg">
@@ -72,6 +74,7 @@ export function StageColumn({
                   onDelete={onDeleteDeal}
                   onMoveToStage={onMoveToStage}
                   onClick={onDealClick}
+                  onGenerateDD={onGenerateDD}
                 />
               ))
             )}
