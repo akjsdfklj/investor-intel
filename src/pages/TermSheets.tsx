@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, FileText, Sparkles, Send, Eye, CheckCircle } from 'lucide-react';
+import { FileText, Sparkles, Send, Eye, CheckCircle } from 'lucide-react';
 import { useTermSheets } from '@/hooks/useTermSheets';
 import { usePipelineDeals } from '@/hooks/usePipelineDeals';
-import { TermSheet, TermSheetStatus } from '@/types';
+import { TermSheet, TermSheetStatus, PipelineDeal } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { AITermSheetWizard } from '@/components/term-sheets/AITermSheetWizard';
+import { TermSheetGenerator } from '@/components/term-sheets/TermSheetGenerator';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const formatCurrency = (amount: number | null): string => {
@@ -42,10 +43,21 @@ export default function TermSheets() {
   const { deals } = usePipelineDeals();
   const [showWizard, setShowWizard] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | TermSheetStatus>('all');
+  const [selectedTermSheet, setSelectedTermSheet] = useState<TermSheet | null>(null);
+  const [showGenerator, setShowGenerator] = useState(false);
 
   const getDealName = (dealId: string) => {
     const deal = deals.find((d) => d.id === dealId);
     return deal?.name || 'Unknown Deal';
+  };
+
+  const getDealById = (dealId: string): PipelineDeal | undefined => {
+    return deals.find((d) => d.id === dealId);
+  };
+
+  const handleViewTermSheet = (termSheet: TermSheet) => {
+    setSelectedTermSheet(termSheet);
+    setShowGenerator(true);
   };
 
   const filteredTermSheets = activeTab === 'all'
@@ -132,6 +144,7 @@ export default function TermSheets() {
                     key={ts.id}
                     termSheet={ts}
                     dealName={getDealName(ts.dealId)}
+                    onView={handleViewTermSheet}
                   />
                 ))}
               </div>
@@ -145,6 +158,19 @@ export default function TermSheets() {
           onOpenChange={setShowWizard}
           deals={deals.filter((d) => d.stage === 'term_sheet' || d.stage === 'ic_review')}
         />
+
+        {/* Term Sheet Generator Dialog */}
+        {selectedTermSheet && (
+          <TermSheetGenerator
+            open={showGenerator}
+            onOpenChange={(open) => {
+              setShowGenerator(open);
+              if (!open) setSelectedTermSheet(null);
+            }}
+            deal={getDealById(selectedTermSheet.dealId)}
+            existingTermSheet={selectedTermSheet}
+          />
+        )}
       </main>
     </div>
   );
@@ -153,9 +179,10 @@ export default function TermSheets() {
 interface TermSheetCardProps {
   termSheet: TermSheet;
   dealName: string;
+  onView: (termSheet: TermSheet) => void;
 }
 
-function TermSheetCard({ termSheet, dealName }: TermSheetCardProps) {
+function TermSheetCard({ termSheet, dealName, onView }: TermSheetCardProps) {
   return (
     <Card className="hover:border-primary/30 transition-colors">
       <CardContent className="p-6">
@@ -184,11 +211,11 @@ function TermSheetCard({ termSheet, dealName }: TermSheetCardProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => onView(termSheet)}>
               View
             </Button>
             {termSheet.status === 'draft' && (
-              <Button size="sm">
+              <Button size="sm" onClick={() => onView(termSheet)}>
                 <Send className="w-4 h-4 mr-2" />
                 Send
               </Button>
