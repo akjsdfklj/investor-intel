@@ -16,50 +16,65 @@ export type Database = {
     Tables: {
       dd_reports: {
         Row: {
+          competitor_mapping: Json | null
           created_at: string
           deal_id: string
           follow_up_questions: string[] | null
           id: string
+          investment_success_rate: Json | null
           market_reason: string | null
           market_score: number | null
+          moat_assessment: Json | null
           moat_reason: string | null
           moat_score: number | null
+          pitch_sanity_check: Json | null
           product_reason: string | null
           product_score: number | null
           scraped_content: string | null
           summary: string | null
+          swot_analysis: Json | null
           team_reason: string | null
           team_score: number | null
         }
         Insert: {
+          competitor_mapping?: Json | null
           created_at?: string
           deal_id: string
           follow_up_questions?: string[] | null
           id?: string
+          investment_success_rate?: Json | null
           market_reason?: string | null
           market_score?: number | null
+          moat_assessment?: Json | null
           moat_reason?: string | null
           moat_score?: number | null
+          pitch_sanity_check?: Json | null
           product_reason?: string | null
           product_score?: number | null
           scraped_content?: string | null
           summary?: string | null
+          swot_analysis?: Json | null
           team_reason?: string | null
           team_score?: number | null
         }
         Update: {
+          competitor_mapping?: Json | null
           created_at?: string
           deal_id?: string
           follow_up_questions?: string[] | null
           id?: string
+          investment_success_rate?: Json | null
           market_reason?: string | null
           market_score?: number | null
+          moat_assessment?: Json | null
           moat_reason?: string | null
           moat_score?: number | null
+          pitch_sanity_check?: Json | null
           product_reason?: string | null
           product_score?: number | null
           scraped_content?: string | null
           summary?: string | null
+          swot_analysis?: Json | null
           team_reason?: string | null
           team_score?: number | null
         }
@@ -534,6 +549,7 @@ export type Database = {
       }
       term_sheets: {
         Row: {
+          content: string | null
           created_at: string
           deal_id: string
           discount_rate: number | null
@@ -552,6 +568,7 @@ export type Database = {
           valuation_cap: number | null
         }
         Insert: {
+          content?: string | null
           created_at?: string
           deal_id: string
           discount_rate?: number | null
@@ -570,6 +587,7 @@ export type Database = {
           valuation_cap?: number | null
         }
         Update: {
+          content?: string | null
           created_at?: string
           deal_id?: string
           discount_rate?: number | null
