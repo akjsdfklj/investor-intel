@@ -255,7 +255,7 @@ export function usePipelineDeals() {
         throw new Error(ddData.error);
       }
 
-      // Step 3: Save DD report to database
+      // Step 3: Save DD report to database with all advanced analysis fields
       const { data: report, error: insertError } = await supabase
         .from('dd_reports')
         .insert({
@@ -271,6 +271,12 @@ export function usePipelineDeals() {
           moat_reason: ddData.moat_reason || ddData.scores?.moat?.reason,
           follow_up_questions: ddData.follow_up_questions || ddData.followUpQuestions,
           scraped_content: scrapedContent,
+          // Advanced analysis fields
+          pitch_sanity_check: ddData.pitchSanityCheck || ddData.pitch_sanity_check || null,
+          swot_analysis: ddData.swotAnalysis || ddData.swot_analysis || null,
+          moat_assessment: ddData.moatAssessment || ddData.moat_assessment || null,
+          competitor_mapping: ddData.competitorMapping || ddData.competitor_mapping || null,
+          investment_success_rate: ddData.investmentSuccessRate || ddData.investment_success_rate || null,
         })
         .select()
         .single();

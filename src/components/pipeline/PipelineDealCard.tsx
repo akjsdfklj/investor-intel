@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { ExternalLink, Star, MoreVertical, Trash2, ArrowRight, FileText, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
+import { ExternalLink, Star, MoreVertical, Trash2, ArrowRight, FileText, CheckCircle, Sparkles, Loader2, Eye } from 'lucide-react';
 import { PipelineDeal, PipelineStage, STAGE_CONFIGS, TermSheet } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { TermSheetStatusBadge } from '@/components/term-sheets/TermSheetStatusBadge';
 import { TermSheetGenerator } from '@/components/term-sheets/TermSheetGenerator';
 import { FinalizeToPortfolioDialog } from '@/components/term-sheets/FinalizeToPortfolioDialog';
+import { DDReportViewer } from './DDReportViewer';
 
 interface PipelineDealCardProps {
   deal: PipelineDeal;
@@ -38,6 +39,7 @@ export function PipelineDealCard({
   const [showTermSheetModal, setShowTermSheetModal] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [isGeneratingDD, setIsGeneratingDD] = useState(false);
+  const [showDDReport, setShowDDReport] = useState(false);
 
   const handleGenerateDD = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -135,6 +137,12 @@ export function PipelineDealCard({
               <DropdownMenuContent align="end">
                   {deal.stage === 'dd' && onGenerateDD && (
                     <>
+                      {deal.ddReportId && (
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShowDDReport(true); }}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          View DD Report
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={handleGenerateDD} disabled={isGeneratingDD}>
                         {isGeneratingDD ? (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -220,6 +228,15 @@ export function PipelineDealCard({
           onOpenChange={setShowFinalizeModal}
           deal={deal}
           termSheet={termSheet}
+        />
+      )}
+
+      {showDDReport && deal.ddReportId && (
+        <DDReportViewer
+          open={showDDReport}
+          onOpenChange={setShowDDReport}
+          reportId={deal.ddReportId}
+          dealName={deal.name}
         />
       )}
     </>
