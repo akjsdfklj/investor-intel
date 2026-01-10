@@ -237,46 +237,73 @@ Provide a thorough VC-style due diligence analysis including:
       required: ["summary", "team_score", "team_reason", "market_score", "market_reason", "product_score", "product_reason", "moat_score", "moat_reason", "follow_up_questions", "pitch_sanity_check", "swot_analysis", "moat_assessment", "competitor_mapping", "investment_success_rate"]
     };
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "generate_dd_report",
-            description: "Generate a comprehensive due diligence report for a startup",
-            parameters: ddSchema
-          }
-        }],
-        tool_choice: { type: "function", function: { name: "generate_dd_report" } }
-      }),
-    });
+    // Retry logic for transient failures
+    let response: Response | null = null;
+    let lastError = '';
+    
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ],
+            tools: [{
+              type: "function",
+              function: {
+                name: "generate_dd_report",
+                description: "Generate a comprehensive due diligence report for a startup",
+                parameters: ddSchema
+              }
+            }],
+            tool_choice: { type: "function", function: { name: "generate_dd_report" } }
+          }),
+        });
 
-    if (!response.ok) {
-      console.error('AI gateway error:', response.status);
+        if (response.ok) break;
+        
+        // Don't retry on client errors (4xx), only server errors (5xx)
+        if (response.status < 500) break;
+        
+        lastError = `AI gateway error: ${response.status}`;
+        console.log(`Attempt ${attempt} failed with ${response.status}, retrying...`);
+        
+        // Wait before retrying (exponential backoff)
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+        }
+      } catch (fetchError) {
+        lastError = fetchError instanceof Error ? fetchError.message : 'Network error';
+        console.log(`Attempt ${attempt} failed: ${lastError}, retrying...`);
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+        }
+      }
+    }
+
+    if (!response || !response.ok) {
+      console.error('AI gateway error after retries:', lastError);
       
-      if (response.status === 429) {
+      if (response?.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
           status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      if (response.status === 402) {
+      if (response?.status === 402) {
         return new Response(JSON.stringify({ error: 'Usage limit reached. Please try again later.' }), {
           status: 402,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      return new Response(JSON.stringify({ error: 'Analysis service temporarily unavailable' }), {
+      return new Response(JSON.stringify({ error: 'Analysis service temporarily unavailable. Please try again in a moment.' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
