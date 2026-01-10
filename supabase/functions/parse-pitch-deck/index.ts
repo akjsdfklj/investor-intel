@@ -51,8 +51,8 @@ serve(async (req) => {
       });
     }
 
-    // Validate URL
-    const urlValidation = validateUrl(body.url);
+    // Validate URL - accept both 'url' and 'pdfUrl' parameters
+    const urlValidation = validateUrl(body.url || body.pdfUrl);
     if (!urlValidation.valid) {
       return new Response(JSON.stringify({ error: urlValidation.error, content: '' }), {
         status: 400,
