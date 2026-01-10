@@ -83,7 +83,7 @@ export type Database = {
             foreignKeyName: "dd_reports_deal_id_fkey"
             columns: ["deal_id"]
             isOneToOne: false
-            referencedRelation: "deals"
+            referencedRelation: "pipeline_deals"
             referencedColumns: ["id"]
           },
         ]
