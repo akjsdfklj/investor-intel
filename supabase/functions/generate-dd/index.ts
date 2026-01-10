@@ -161,6 +161,82 @@ Provide a thorough VC-style due diligence analysis including:
 7. Investment success probability with key risks and strengths
 8. Follow-up questions for the founders`;
 
+    const ddSchema = {
+      type: "object",
+      properties: {
+        summary: { type: "string" },
+        team_score: { type: "number" },
+        team_reason: { type: "string" },
+        market_score: { type: "number" },
+        market_reason: { type: "string" },
+        product_score: { type: "number" },
+        product_reason: { type: "string" },
+        moat_score: { type: "number" },
+        moat_reason: { type: "string" },
+        follow_up_questions: { type: "array", items: { type: "string" } },
+        pitch_sanity_check: {
+          type: "object",
+          properties: {
+            status: { type: "string", enum: ["green", "amber", "red"] },
+            problem: { type: "string" },
+            solution: { type: "string" },
+            target_customer: { type: "string" },
+            pricing_model: { type: "string" },
+            key_metrics: { type: "array", items: { type: "string" } },
+            claimed_tam: { type: "string" },
+            missing_info: { type: "array", items: { type: "string" } }
+          },
+          required: ["status", "problem", "solution", "target_customer", "pricing_model", "key_metrics", "claimed_tam", "missing_info"]
+        },
+        swot_analysis: {
+          type: "object",
+          properties: {
+            strengths: { type: "array", items: { type: "string" } },
+            weaknesses: { type: "array", items: { type: "string" } },
+            opportunities: { type: "array", items: { type: "string" } },
+            threats: { type: "array", items: { type: "string" } }
+          },
+          required: ["strengths", "weaknesses", "opportunities", "threats"]
+        },
+        moat_assessment: {
+          type: "object",
+          properties: {
+            score: { type: "number" },
+            type: { type: "string" },
+            reasoning: { type: "string" }
+          },
+          required: ["score", "type", "reasoning"]
+        },
+        competitor_mapping: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" },
+              country: { type: "string" },
+              funding_stage: { type: "string" },
+              website_url: { type: "string" },
+              comparison: { type: "string" }
+            },
+            required: ["name", "description", "country", "funding_stage", "comparison"]
+          }
+        },
+        investment_success_rate: {
+          type: "object",
+          properties: {
+            probability: { type: "number" },
+            confidence: { type: "string", enum: ["low", "medium", "high"] },
+            reasoning: { type: "string" },
+            key_risks: { type: "array", items: { type: "string" } },
+            key_strengths: { type: "array", items: { type: "string" } }
+          },
+          required: ["probability", "confidence", "reasoning", "key_risks", "key_strengths"]
+        }
+      },
+      required: ["summary", "team_score", "team_reason", "market_score", "market_reason", "product_score", "product_reason", "moat_score", "moat_reason", "follow_up_questions", "pitch_sanity_check", "swot_analysis", "moat_assessment", "competitor_mapping", "investment_success_rate"]
+    };
+
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -173,6 +249,15 @@ Provide a thorough VC-style due diligence analysis including:
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
+        tools: [{
+          type: "function",
+          function: {
+            name: "generate_dd_report",
+            description: "Generate a comprehensive due diligence report for a startup",
+            parameters: ddSchema
+          }
+        }],
+        tool_choice: { type: "function", function: { name: "generate_dd_report" } }
       }),
     });
 
@@ -198,21 +283,32 @@ Provide a thorough VC-style due diligence analysis including:
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    console.log('AI response received, parsing tool call...');
 
-    console.log('AI response received, parsing JSON...');
-
-    // Parse the JSON response
+    // Extract from tool call response
     let ddResult;
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        ddResult = JSON.parse(jsonMatch[0]);
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) {
+        ddResult = JSON.parse(toolCall.function.arguments);
       } else {
-        throw new Error('No JSON found in response');
+        // Fallback: try to parse from content
+        const content = data.choices?.[0]?.message?.content;
+        if (content) {
+          // Remove markdown code blocks if present
+          const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            ddResult = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error('No JSON found in response');
+          }
+        } else {
+          throw new Error('No content in response');
+        }
       }
     } catch (parseError) {
-      console.error('Failed to parse AI response');
+      console.error('Failed to parse AI response:', parseError);
       return new Response(JSON.stringify({ error: 'Failed to process analysis. Please try again.' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
