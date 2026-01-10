@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { ExternalLink, Star, MoreVertical, Trash2, ArrowRight, FileText, CheckCircle, Sparkles, Loader2, Eye } from 'lucide-react';
-import { PipelineDeal, PipelineStage, STAGE_CONFIGS, TermSheet } from '@/types';
+import { ExternalLink, Star, MoreVertical, Trash2, ArrowRight, FileText, CheckCircle, Sparkles, Loader2, Eye, TrendingUp } from 'lucide-react';
+import { PipelineDeal, PipelineStage, STAGE_CONFIGS, TermSheet, DDReport } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +16,7 @@ import { TermSheetStatusBadge } from '@/components/term-sheets/TermSheetStatusBa
 import { TermSheetGenerator } from '@/components/term-sheets/TermSheetGenerator';
 import { FinalizeToPortfolioDialog } from '@/components/term-sheets/FinalizeToPortfolioDialog';
 import { DDReportViewer } from './DDReportViewer';
+import { useDDReport } from '@/hooks/useDDReport';
 
 interface PipelineDealCardProps {
   deal: PipelineDeal;
@@ -25,6 +26,22 @@ interface PipelineDealCardProps {
   onClick?: (deal: PipelineDeal) => void;
   termSheet?: TermSheet;
   onGenerateDD?: (dealId: string) => Promise<{ success: boolean; error?: string }>;
+  isGeneratingDD?: boolean;
+}
+
+// Mini score badge component for inline DD display
+function MiniScoreBadge({ label, score }: { label: string; score: number | null | undefined }) {
+  if (score == null) return null;
+  const getScoreColor = (s: number) => {
+    if (s >= 4) return 'bg-green-500/20 text-green-600 border-green-500/30';
+    if (s >= 3) return 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30';
+    return 'bg-red-500/20 text-red-600 border-red-500/30';
+  };
+  return (
+    <div className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium border', getScoreColor(score))}>
+      {label}: {score}/5
+    </div>
+  );
 }
 
 export function PipelineDealCard({
@@ -35,18 +52,32 @@ export function PipelineDealCard({
   onClick,
   termSheet,
   onGenerateDD,
+  isGeneratingDD: externalGeneratingDD = false,
 }: PipelineDealCardProps) {
   const [showTermSheetModal, setShowTermSheetModal] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
-  const [isGeneratingDD, setIsGeneratingDD] = useState(false);
+  const [localGeneratingDD, setLocalGeneratingDD] = useState(false);
   const [showDDReport, setShowDDReport] = useState(false);
+  const [ddReport, setDDReport] = useState<DDReport | null>(null);
+  const { getDDReport, isLoading: isLoadingDD } = useDDReport();
+
+  const isGeneratingDD = externalGeneratingDD || localGeneratingDD;
+
+  // Fetch DD report when deal has a report ID
+  useEffect(() => {
+    if (deal.ddReportId && deal.stage === 'dd') {
+      getDDReport(deal.ddReportId).then(report => {
+        if (report) setDDReport(report);
+      });
+    }
+  }, [deal.ddReportId, deal.stage]);
 
   const handleGenerateDD = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onGenerateDD || isGeneratingDD) return;
-    setIsGeneratingDD(true);
+    setLocalGeneratingDD(true);
     await onGenerateDD(deal.id);
-    setIsGeneratingDD(false);
+    setLocalGeneratingDD(false);
   };
 
   const currentStageIndex = STAGE_CONFIGS.findIndex(s => s.key === deal.stage);
@@ -208,6 +239,61 @@ export function PipelineDealCard({
                 <span>{getDaysInStage()}</span>
               </div>
             </div>
+
+            {/* Inline DD Section for deals in DD stage */}
+            {deal.stage === 'dd' && (
+              <div className="mt-3 pt-3 border-t border-border">
+                {isGeneratingDD ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Analyzing deal...</span>
+                  </div>
+                ) : ddReport ? (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-1">
+                      <MiniScoreBadge label="Team" score={ddReport.scores?.team?.score} />
+                      <MiniScoreBadge label="Market" score={ddReport.scores?.market?.score} />
+                      <MiniScoreBadge label="Product" score={ddReport.scores?.product?.score} />
+                      <MiniScoreBadge label="Moat" score={ddReport.scores?.moat?.score} />
+                    </div>
+                    {ddReport.investmentSuccessRate && (
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <TrendingUp className="w-3 h-3 text-primary" />
+                        <span className="font-medium text-foreground">
+                          {ddReport.investmentSuccessRate.probability}% Success
+                        </span>
+                        <span className="text-muted-foreground">
+                          ({ddReport.investmentSuccessRate.confidence} confidence)
+                        </span>
+                      </div>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 text-xs w-full mt-1"
+                      onClick={(e) => { e.stopPropagation(); setShowDDReport(true); }}
+                    >
+                      <Eye className="w-3 h-3 mr-1" />
+                      View Full Report
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">DD Pending</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-5 text-xs"
+                      onClick={handleGenerateDD}
+                      disabled={!onGenerateDD}
+                    >
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      Generate
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Draggable>

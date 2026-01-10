@@ -7,6 +7,7 @@ import { usePipelineDeals } from '@/hooks/usePipelineDeals';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2, RefreshCw } from 'lucide-react';
 import { STAGE_CONFIGS, PipelineStage } from '@/types';
+import { toast } from 'sonner';
 
 export default function PipelineDashboard() {
   const { deals, isLoading, createDeal, updateDealStage, deleteDeal, generateDDForDeal, refetch } =
@@ -26,6 +27,15 @@ export default function PipelineDashboard() {
 
   const handleStageChange = async (dealId: string, newStage: PipelineStage) => {
     await updateDealStage(dealId, newStage);
+    
+    // Auto-trigger DD generation when deal enters DD stage
+    if (newStage === 'dd') {
+      const deal = deals.find(d => d.id === dealId);
+      if (deal && !deal.ddReportId) {
+        toast.info('Generating DD Report...', { description: 'AI is analyzing the deal. This may take a moment.' });
+        generateDDForDeal(dealId);
+      }
+    }
   };
 
   const handleDeleteDeal = async (dealId: string) => {
