@@ -256,18 +256,21 @@ export function usePipelineDeals() {
       }
 
       // Step 3: Save DD report to database with all advanced analysis fields
+      // Round scores to integers as the database expects integer types
+      const roundScore = (score: any) => score != null ? Math.round(Number(score)) : null;
+      
       const { data: report, error: insertError } = await supabase
         .from('dd_reports')
         .insert({
           deal_id: dealId,
           summary: ddData.summary || '',
-          team_score: ddData.team_score || ddData.scores?.team?.score,
+          team_score: roundScore(ddData.team_score || ddData.scores?.team?.score),
           team_reason: ddData.team_reason || ddData.scores?.team?.reason,
-          market_score: ddData.market_score || ddData.scores?.market?.score,
+          market_score: roundScore(ddData.market_score || ddData.scores?.market?.score),
           market_reason: ddData.market_reason || ddData.scores?.market?.reason,
-          product_score: ddData.product_score || ddData.scores?.product?.score,
+          product_score: roundScore(ddData.product_score || ddData.scores?.product?.score),
           product_reason: ddData.product_reason || ddData.scores?.product?.reason,
-          moat_score: ddData.moat_score || ddData.scores?.moat?.score,
+          moat_score: roundScore(ddData.moat_score || ddData.scores?.moat?.score),
           moat_reason: ddData.moat_reason || ddData.scores?.moat?.reason,
           follow_up_questions: ddData.follow_up_questions || ddData.followUpQuestions,
           scraped_content: scrapedContent,
