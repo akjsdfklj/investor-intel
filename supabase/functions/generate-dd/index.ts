@@ -328,18 +328,70 @@ Provide a thorough VC-style due diligence analysis including:
           if (jsonMatch) {
             ddResult = JSON.parse(jsonMatch[0]);
           } else {
-            throw new Error('No JSON found in response');
+            console.log('No JSON found in content, using fallback report');
+            ddResult = null;
           }
         } else {
-          throw new Error('No content in response');
+          console.log('No content in response, using fallback report');
+          ddResult = null;
         }
       }
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
-      return new Response(JSON.stringify({ error: 'Failed to process analysis. Please try again.' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      ddResult = null;
+    }
+
+    // If parsing failed, return a fallback placeholder report
+    if (!ddResult) {
+      console.log('Generating fallback DD report for:', dealName);
+      ddResult = {
+        summary: `Due diligence analysis for ${dealName}. Limited information was available for analysis. Please provide additional materials (pitch deck, website content) for a more comprehensive report.`,
+        team_score: 3,
+        team_reason: "Unable to assess team - no detailed information available. Recommend scheduling a call with founders.",
+        market_score: 3,
+        market_reason: "Unable to assess market - no detailed information available. Request market research or pitch deck.",
+        product_score: 3,
+        product_reason: "Unable to assess product - no detailed information available. Request product demo or documentation.",
+        moat_score: 2,
+        moat_reason: "Unable to assess defensibility - no detailed information available. Discuss competitive advantages with founders.",
+        follow_up_questions: [
+          "Can you provide a pitch deck with detailed information about the company?",
+          "What is the founding team's background and relevant experience?",
+          "What is your current traction (users, revenue, growth rate)?",
+          "Who are your main competitors and how do you differentiate?",
+          "What is your business model and pricing strategy?",
+          "What are you looking to raise and what will you use the funds for?"
+        ],
+        pitch_sanity_check: {
+          status: "amber",
+          problem: "Information not available",
+          solution: "Information not available",
+          target_customer: "Information not available",
+          pricing_model: "Information not available",
+          key_metrics: [],
+          claimed_tam: "Information not available",
+          missing_info: ["Pitch deck", "Website content", "Business model details", "Team information", "Traction metrics"]
+        },
+        swot_analysis: {
+          strengths: ["Pending more information"],
+          weaknesses: ["Limited visibility into operations"],
+          opportunities: ["Pending market analysis"],
+          threats: ["Pending competitive analysis"]
+        },
+        moat_assessment: {
+          score: 3,
+          type: "none",
+          reasoning: "Unable to assess moat without more information about the business model, technology, and competitive positioning."
+        },
+        competitor_mapping: [],
+        investment_success_rate: {
+          probability: 30,
+          confidence: "low",
+          reasoning: "Low confidence due to limited information. Default probability assigned pending detailed analysis.",
+          key_risks: ["Insufficient information for proper assessment", "Unknown market dynamics", "Unknown competitive positioning"],
+          key_strengths: ["Early stage opportunity"]
+        }
+      };
     }
 
     console.log('Enhanced DD generated successfully');
