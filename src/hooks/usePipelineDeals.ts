@@ -257,8 +257,72 @@ export function usePipelineDeals() {
 
       // Step 3: Save DD report to database with all advanced analysis fields
       // Round scores to integers as the database expects integer types
-      const roundScore = (score: any) => score != null ? Math.round(Number(score)) : null;
-      
+      const roundScore = (score: any) => (score != null ? Math.round(Number(score)) : null);
+
+      const normalizePitchSanityCheck = (input: any) => {
+        if (!input) return null;
+        return {
+          status: input.status,
+          problem: input.problem ?? '',
+          solution: input.solution ?? '',
+          targetCustomer: input.targetCustomer ?? input.target_customer ?? '',
+          pricingModel: input.pricingModel ?? input.pricing_model ?? '',
+          keyMetrics: input.keyMetrics ?? input.key_metrics ?? [],
+          claimedTAM: input.claimedTAM ?? input.claimed_tam ?? '',
+          missingInfo: input.missingInfo ?? input.missing_info ?? [],
+        };
+      };
+
+      const normalizeSwotAnalysis = (input: any) => {
+        if (!input) return null;
+        return {
+          strengths: input.strengths ?? [],
+          weaknesses: input.weaknesses ?? [],
+          opportunities: input.opportunities ?? [],
+          threats: input.threats ?? [],
+        };
+      };
+
+      const normalizeMoatAssessment = (input: any) => {
+        if (!input) return null;
+        return {
+          score: input.score ?? 0,
+          type: input.type ?? 'none',
+          reasoning: input.reasoning ?? '',
+        };
+      };
+
+      const normalizeCompetitorMapping = (input: any) => {
+        if (!Array.isArray(input)) return null;
+        return input.map((c: any) => ({
+          name: c?.name ?? '',
+          description: c?.description ?? '',
+          country: c?.country ?? '',
+          fundingStage: c?.fundingStage ?? c?.funding_stage ?? '',
+          websiteUrl: c?.websiteUrl ?? c?.website_url ?? undefined,
+          comparison: c?.comparison ?? '',
+        }));
+      };
+
+      const normalizeInvestmentSuccessRate = (input: any) => {
+        if (!input) return null;
+        return {
+          probability: input.probability ?? 0,
+          confidence: input.confidence ?? 'medium',
+          reasoning: input.reasoning ?? '',
+          keyRisks: input.keyRisks ?? input.key_risks ?? [],
+          keyStrengths: input.keyStrengths ?? input.key_strengths ?? [],
+        };
+      };
+
+      const normalizedPitchSanityCheck = normalizePitchSanityCheck(ddData.pitchSanityCheck ?? ddData.pitch_sanity_check);
+      const normalizedSwotAnalysis = normalizeSwotAnalysis(ddData.swotAnalysis ?? ddData.swot_analysis);
+      const normalizedMoatAssessment = normalizeMoatAssessment(ddData.moatAssessment ?? ddData.moat_assessment);
+      const normalizedCompetitorMapping = normalizeCompetitorMapping(ddData.competitorMapping ?? ddData.competitor_mapping);
+      const normalizedInvestmentSuccessRate = normalizeInvestmentSuccessRate(ddData.investmentSuccessRate ?? ddData.investment_success_rate);
+
+      const followUpQuestions = (ddData.follow_up_questions ?? ddData.followUpQuestions ?? []) as string[];
+
       const { data: report, error: insertError } = await supabase
         .from('dd_reports')
         .insert({
@@ -272,14 +336,14 @@ export function usePipelineDeals() {
           product_reason: ddData.product_reason || ddData.scores?.product?.reason,
           moat_score: roundScore(ddData.moat_score || ddData.scores?.moat?.score),
           moat_reason: ddData.moat_reason || ddData.scores?.moat?.reason,
-          follow_up_questions: ddData.follow_up_questions || ddData.followUpQuestions,
+          follow_up_questions: followUpQuestions,
           scraped_content: scrapedContent,
-          // Advanced analysis fields
-          pitch_sanity_check: ddData.pitchSanityCheck || ddData.pitch_sanity_check || null,
-          swot_analysis: ddData.swotAnalysis || ddData.swot_analysis || null,
-          moat_assessment: ddData.moatAssessment || ddData.moat_assessment || null,
-          competitor_mapping: ddData.competitorMapping || ddData.competitor_mapping || null,
-          investment_success_rate: ddData.investmentSuccessRate || ddData.investment_success_rate || null,
+          // Advanced analysis fields (store in camelCase to match frontend types)
+          pitch_sanity_check: normalizedPitchSanityCheck,
+          swot_analysis: normalizedSwotAnalysis,
+          moat_assessment: normalizedMoatAssessment,
+          competitor_mapping: normalizedCompetitorMapping,
+          investment_success_rate: normalizedInvestmentSuccessRate,
         })
         .select()
         .single();
@@ -289,15 +353,17 @@ export function usePipelineDeals() {
       }
 
       // Step 4: Link DD report to the deal
-      await supabase
+      const { error: linkError } = await supabase
         .from('pipeline_deals')
-        .update({ dd_report_id: report.id })
+        .update({ dd_report_id: report.id, updated_at: new Date().toISOString() })
         .eq('id', dealId);
 
+      if (linkError) {
+        throw linkError;
+      }
+
       // Update local state
-      setDeals(prev =>
-        prev.map(d => (d.id === dealId ? { ...d, ddReportId: report.id } : d))
-      );
+      setDeals(prev => prev.map(d => (d.id === dealId ? { ...d, ddReportId: report.id } : d)));
 
       toast({
         title: 'DD Report Generated',

@@ -30,60 +30,121 @@ export default function BulkDueDiligence() {
     entry: BulkStartupEntry,
     updateEntry: (updates: Partial<BulkStartupEntry>) => void
   ): Promise<DDReport | null> => {
+    const normalizePitchSanityCheck = (input: any) => {
+      if (!input) return undefined;
+      return {
+        status: input.status,
+        problem: input.problem ?? '',
+        solution: input.solution ?? '',
+        targetCustomer: input.targetCustomer ?? input.target_customer ?? '',
+        pricingModel: input.pricingModel ?? input.pricing_model ?? '',
+        keyMetrics: input.keyMetrics ?? input.key_metrics ?? [],
+        claimedTAM: input.claimedTAM ?? input.claimed_tam ?? '',
+        missingInfo: input.missingInfo ?? input.missing_info ?? [],
+      };
+    };
+
+    const normalizeCompetitorMapping = (input: any) => {
+      if (!Array.isArray(input)) return undefined;
+      return input.map((c: any) => ({
+        name: c?.name ?? '',
+        description: c?.description ?? '',
+        country: c?.country ?? '',
+        fundingStage: c?.fundingStage ?? c?.funding_stage ?? '',
+        websiteUrl: c?.websiteUrl ?? c?.website_url ?? undefined,
+        comparison: c?.comparison ?? '',
+      }));
+    };
+
+    const normalizeInvestmentSuccessRate = (input: any) => {
+      if (!input) return undefined;
+      return {
+        probability: input.probability ?? 0,
+        confidence: input.confidence ?? 'medium',
+        reasoning: input.reasoning ?? '',
+        keyRisks: input.keyRisks ?? input.key_risks ?? [],
+        keyStrengths: input.keyStrengths ?? input.key_strengths ?? [],
+      };
+    };
+
     try {
-      // Step 1: Parse pitch deck
       updateEntry({ status: 'parsing', progress: 20 });
-      
+
       let pitchDeckContent = '';
-      
+      let scrapedContent = '';
+      let dealUrl = '';
+
       if (entry.sourceType === 'url' && entry.sourceUrl) {
-        // For URLs, we'd need to download and parse
-        const { data, error } = await supabase.functions.invoke('parse-pitch-deck', {
-          body: { pdfUrl: entry.sourceUrl }
-        });
-        
-        if (error) throw new Error(error.message);
-        pitchDeckContent = data?.content || '';
+        dealUrl = entry.sourceUrl;
+
+        // If it's a normal website URL (not a PDF), scrape it instead of "parsing a pitch deck".
+        const isPdfUrl = /\.pdf(\?|#|$)/i.test(entry.sourceUrl);
+
+        if (!isPdfUrl) {
+          const { data: scrapeData, error: scrapeError } = await supabase.functions.invoke('scrape-website', {
+            body: { url: entry.sourceUrl },
+          });
+
+          if (!scrapeError) {
+            scrapedContent = scrapeData?.markdown || '';
+          }
+        } else {
+          // Best-effort: try pitch deck parsing, but don't fail the whole run if it errors.
+          try {
+            const { data, error } = await supabase.functions.invoke('parse-pitch-deck', {
+              body: { url: entry.sourceUrl },
+            });
+
+            if (!error) pitchDeckContent = data?.content || '';
+          } catch {
+            // ignore
+          }
+        }
       } else if (entry.sourceType === 'file') {
-        // For files, upload to storage first then parse
-        // Simplified: we'll use the name directly for now
-        pitchDeckContent = `Pitch deck for ${entry.name}`;
+        // File parsing isn't wired yet; still allow DD generation using the filename.
+        pitchDeckContent = `Pitch deck filename: ${entry.fileName || entry.name}`;
       }
 
       updateEntry({ status: 'analyzing', progress: 50, pitchDeckContent });
 
-      // Step 2: Generate DD
       const { data: ddData, error: ddError } = await supabase.functions.invoke('generate-dd', {
         body: {
           dealName: entry.name,
+          dealUrl,
           dealDescription: `Startup: ${entry.name}`,
-          pitchDeckContent
-        }
+          scrapedContent,
+          pitchDeckContent,
+        },
       });
 
       if (ddError) throw new Error(ddError.message);
 
+      const raw = (ddData || {}) as any;
+      const scores = raw.scores || {
+        team: { score: raw.team_score ?? 3, reason: raw.team_reason ?? '' },
+        market: { score: raw.market_score ?? 3, reason: raw.market_reason ?? '' },
+        product: { score: raw.product_score ?? 3, reason: raw.product_reason ?? '' },
+        moat: { score: raw.moat_score ?? 3, reason: raw.moat_reason ?? '' },
+      };
+
       const ddReport: DDReport = {
         id: crypto.randomUUID(),
         dealId: entry.id,
-        summary: ddData?.summary || '',
-        scores: ddData?.scores || {
-          team: { score: 3, reason: '' },
-          market: { score: 3, reason: '' },
-          product: { score: 3, reason: '' },
-          moat: { score: 3, reason: '' }
-        },
-        followUpQuestions: ddData?.followUpQuestions || [],
+        summary: raw.summary || '',
+        scores,
+        followUpQuestions: raw.followUpQuestions || raw.follow_up_questions || [],
         generatedAt: new Date().toISOString(),
-        pitchSanityCheck: ddData?.pitchSanityCheck,
-        swotAnalysis: ddData?.swotAnalysis,
-        moatAssessment: ddData?.moatAssessment,
-        financialAnalysis: ddData?.financialAnalysis
+        scrapedContent: scrapedContent || undefined,
+        pitchSanityCheck: normalizePitchSanityCheck(raw.pitchSanityCheck || raw.pitch_sanity_check),
+        swotAnalysis: raw.swotAnalysis || raw.swot_analysis,
+        moatAssessment: raw.moatAssessment || raw.moat_assessment,
+        competitorMapping: normalizeCompetitorMapping(raw.competitorMapping || raw.competitor_mapping),
+        investmentSuccessRate: normalizeInvestmentSuccessRate(raw.investmentSuccessRate || raw.investment_success_rate),
+        financialAnalysis: raw.financialAnalysis,
       };
 
       updateEntry({ status: 'complete', progress: 100, ddReport });
       return ddReport;
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Analysis failed';
       updateEntry({ status: 'error', error: errorMessage, progress: 0 });

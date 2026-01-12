@@ -24,6 +24,43 @@ interface DDReportRow {
   created_at: string;
 }
 
+function normalizePitchSanityCheck(input: any): PitchSanityCheck | undefined {
+  if (!input) return undefined;
+  return {
+    status: input.status,
+    problem: input.problem ?? '',
+    solution: input.solution ?? '',
+    targetCustomer: input.targetCustomer ?? input.target_customer ?? '',
+    pricingModel: input.pricingModel ?? input.pricing_model ?? '',
+    keyMetrics: input.keyMetrics ?? input.key_metrics ?? [],
+    claimedTAM: input.claimedTAM ?? input.claimed_tam ?? '',
+    missingInfo: input.missingInfo ?? input.missing_info ?? [],
+  };
+}
+
+function normalizeCompetitorMapping(input: any): Competitor[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  return input.map((c: any) => ({
+    name: c?.name ?? '',
+    description: c?.description ?? '',
+    country: c?.country ?? '',
+    fundingStage: c?.fundingStage ?? c?.funding_stage ?? '',
+    websiteUrl: c?.websiteUrl ?? c?.website_url ?? undefined,
+    comparison: c?.comparison ?? '',
+  }));
+}
+
+function normalizeInvestmentSuccessRate(input: any): InvestmentSuccessRate | undefined {
+  if (!input) return undefined;
+  return {
+    probability: input.probability ?? 0,
+    confidence: input.confidence ?? 'medium',
+    reasoning: input.reasoning ?? '',
+    keyRisks: input.keyRisks ?? input.key_risks ?? [],
+    keyStrengths: input.keyStrengths ?? input.key_strengths ?? [],
+  };
+}
+
 function mapRowToDDReport(row: DDReportRow): DDReport {
   const scores = {
     team: { score: row.team_score || 0, reason: row.team_reason || '' } as ScoreItem,
@@ -40,11 +77,11 @@ function mapRowToDDReport(row: DDReportRow): DDReport {
     followUpQuestions: row.follow_up_questions || [],
     generatedAt: row.created_at,
     scrapedContent: row.scraped_content || undefined,
-    pitchSanityCheck: row.pitch_sanity_check || undefined,
-    swotAnalysis: row.swot_analysis || undefined,
-    moatAssessment: row.moat_assessment || undefined,
-    competitorMapping: row.competitor_mapping || undefined,
-    investmentSuccessRate: row.investment_success_rate || undefined,
+    pitchSanityCheck: normalizePitchSanityCheck(row.pitch_sanity_check),
+    swotAnalysis: (row.swot_analysis as any) || undefined,
+    moatAssessment: (row.moat_assessment as any) || undefined,
+    competitorMapping: normalizeCompetitorMapping(row.competitor_mapping),
+    investmentSuccessRate: normalizeInvestmentSuccessRate(row.investment_success_rate),
   };
 }
 
