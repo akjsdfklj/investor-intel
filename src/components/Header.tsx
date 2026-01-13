@@ -1,4 +1,4 @@
-import { TrendingUp, Settings, Sparkles, FileStack, Kanban, Briefcase, Database, FileText } from 'lucide-react';
+import { TrendingUp, Settings, Sparkles, FileStack, Kanban, Briefcase, Database, FileText, Search } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -65,7 +65,16 @@ export function Header() {
             <FileStack className="w-4 h-4" />
             Bulk DD
           </Button>
-          <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+          <Button
+            variant={location.pathname === '/deep-dd' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => navigate('/deep-dd')}
+            className="hidden lg:flex items-center gap-2"
+          >
+            <Search className="w-4 h-4" />
+            Deep DD
+          </Button>
+          <div className="hidden xl:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
             <Sparkles className="w-4 h-4 text-primary" />
             <span>Lovable AI</span>
           </div>

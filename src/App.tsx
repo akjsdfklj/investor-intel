@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import DealDetail from "./pages/DealDetail";
 import Settings from "./pages/Settings";
 import BulkDueDiligence from "./pages/BulkDueDiligence";
+import DeepDueDiligence from "./pages/DeepDueDiligence";
 import PipelineDashboard from "./pages/PipelineDashboard";
 import Portfolio from "./pages/Portfolio";
 import PortfolioCompanyDetail from "./pages/PortfolioCompanyDetail";
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/deal/:dealId" element={<DealDetail />} />
           <Route path="/bulk-dd" element={<BulkDueDiligence />} />
+          <Route path="/deep-dd" element={<DeepDueDiligence />} />
           <Route path="/pipeline" element={<PipelineDashboard />} />
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/portfolio/:companyId" element={<PortfolioCompanyDetail />} />
