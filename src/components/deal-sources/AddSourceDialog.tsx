@@ -11,9 +11,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table2, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Table2, FileSpreadsheet, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
 import { useDealSources } from '@/hooks/useDealSources';
 import { AirtableConfig, GSheetsConfig, FieldMapping } from '@/types';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface AddSourceDialogProps {
   open: boolean;
@@ -34,7 +35,7 @@ const defaultFieldMapping: FieldMapping = {
 export function AddSourceDialog({ open, onOpenChange }: AddSourceDialogProps) {
   const { createSource } = useDealSources();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [sourceType, setSourceType] = useState<'airtable' | 'gsheets'>('airtable');
+  const [sourceType, setSourceType] = useState<'airtable' | 'gsheets'>('gsheets');
 
   // Airtable fields
   const [airtableName, setAirtableName] = useState('');
@@ -94,7 +95,7 @@ export function AddSourceDialog({ open, onOpenChange }: AddSourceDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>Add Deal Source</DialogTitle>
           <DialogDescription>
@@ -104,17 +105,81 @@ export function AddSourceDialog({ open, onOpenChange }: AddSourceDialogProps) {
 
         <Tabs value={sourceType} onValueChange={(v) => setSourceType(v as 'airtable' | 'gsheets')}>
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="airtable" className="flex items-center gap-2">
-              <Table2 className="w-4 h-4" />
-              Airtable
-            </TabsTrigger>
             <TabsTrigger value="gsheets" className="flex items-center gap-2">
               <FileSpreadsheet className="w-4 h-4" />
               Google Sheets
             </TabsTrigger>
+            <TabsTrigger value="airtable" className="flex items-center gap-2">
+              <Table2 className="w-4 h-4" />
+              Airtable
+            </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="gsheets" className="space-y-4 mt-4">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Important:</strong> Make sure your Google Sheet is shared as <strong>"Anyone with the link"</strong> with <strong>Viewer</strong> access for the sync to work.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <Label htmlFor="gsheets-name">Source Name</Label>
+              <Input
+                id="gsheets-name"
+                placeholder="e.g., VC Deal Tracker"
+                value={gsheetsName}
+                onChange={(e) => setGsheetsName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gsheets-url">Spreadsheet URL</Label>
+              <Input
+                id="gsheets-url"
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                value={gsheetsUrl}
+                onChange={(e) => setGsheetsUrl(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Paste the full URL from your browser when viewing the spreadsheet
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gsheets-sheet">Sheet Name (Tab)</Label>
+              <Input
+                id="gsheets-sheet"
+                placeholder="Sheet1"
+                value={gsheetsSheet}
+                onChange={(e) => setGsheetsSheet(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                The name of the tab at the bottom of your spreadsheet (default: Sheet1)
+              </p>
+            </div>
+
+            <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+              <p className="text-sm font-medium">Expected Column Headers</p>
+              <p className="text-xs text-muted-foreground">
+                Your spreadsheet should have these columns in the first row:
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {Object.values(defaultFieldMapping).map((header) => (
+                  <span key={header} className="text-xs bg-background px-2 py-1 rounded border">
+                    {header}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
           <TabsContent value="airtable" className="space-y-4 mt-4">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Requires an <strong>AIRTABLE_API_KEY</strong> configured in Settings → Integrations.
+              </AlertDescription>
+            </Alert>
+
             <div className="space-y-2">
               <Label htmlFor="airtable-name">Source Name</Label>
               <Input
@@ -132,8 +197,16 @@ export function AddSourceDialog({ open, onOpenChange }: AddSourceDialogProps) {
                 value={airtableBaseId}
                 onChange={(e) => setAirtableBaseId(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                Find this in your Airtable base URL: airtable.com/appXXX
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                Find this in your Airtable base URL: airtable.com/<strong>appXXX</strong>
+                <a 
+                  href="https://support.airtable.com/docs/finding-airtable-ids" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-0.5"
+                >
+                  Learn more <ExternalLink className="w-3 h-3" />
+                </a>
               </p>
             </div>
             <div className="space-y-2">
@@ -143,36 +216,6 @@ export function AddSourceDialog({ open, onOpenChange }: AddSourceDialogProps) {
                 placeholder="e.g., Deals"
                 value={airtableTable}
                 onChange={(e) => setAirtableTable(e.target.value)}
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="gsheets" className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="gsheets-name">Source Name</Label>
-              <Input
-                id="gsheets-name"
-                placeholder="e.g., VC Deal Tracker"
-                value={gsheetsName}
-                onChange={(e) => setGsheetsName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="gsheets-url">Spreadsheet URL or ID</Label>
-              <Input
-                id="gsheets-url"
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-                value={gsheetsUrl}
-                onChange={(e) => setGsheetsUrl(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="gsheets-sheet">Sheet Name</Label>
-              <Input
-                id="gsheets-sheet"
-                placeholder="Sheet1"
-                value={gsheetsSheet}
-                onChange={(e) => setGsheetsSheet(e.target.value)}
               />
             </div>
           </TabsContent>

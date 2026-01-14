@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,9 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { PipelineDeal, TermSheetTemplate, TermSheet } from '@/types';
 import { useTermSheets } from '@/hooks/useTermSheets';
-import { Loader2, FileText, Send, CheckCircle, Settings, Edit2 } from 'lucide-react';
+import { Loader2, FileText, Send, CheckCircle, Settings, Edit2, X, Paperclip, Upload } from 'lucide-react';
 import { TermSheetStatusBadge } from './TermSheetStatusBadge';
 import { TermSheetEditor } from './TermSheetEditor';
 import { generateTermSheetContent, getTemplateDescription } from '@/lib/termSheetTemplates';
@@ -27,6 +28,7 @@ export function TermSheetGenerator({ open, onOpenChange, deal, existingTermSheet
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'document'>('settings');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     templateType: existingTermSheet?.templateType || 'safe' as TermSheetTemplate,
@@ -36,6 +38,15 @@ export function TermSheetGenerator({ open, onOpenChange, deal, existingTermSheet
     proRataRights: existingTermSheet?.proRataRights ?? true,
     recipientEmail: existingTermSheet?.recipientEmail || deal?.founderEmail || '',
   });
+
+  // Email recipients state
+  const [toEmails, setToEmails] = useState<string[]>([formData.recipientEmail].filter(Boolean));
+  const [ccEmails, setCcEmails] = useState<string[]>([]);
+  const [newToEmail, setNewToEmail] = useState('');
+  const [newCcEmail, setNewCcEmail] = useState('');
+
+  // Attachment state
+  const [attachment, setAttachment] = useState<File | null>(null);
 
   const [documentContent, setDocumentContent] = useState('');
 
@@ -56,7 +67,57 @@ export function TermSheetGenerator({ open, onOpenChange, deal, existingTermSheet
     setDocumentContent(content);
   }, [formData, deal]);
 
+  // Sync toEmails when recipientEmail changes
+  useEffect(() => {
+    if (formData.recipientEmail && !toEmails.includes(formData.recipientEmail)) {
+      setToEmails([formData.recipientEmail]);
+    }
+  }, [formData.recipientEmail]);
+
   const isReadOnly = existingTermSheet?.status === 'sent' || existingTermSheet?.status === 'signed';
+
+  const addToEmail = () => {
+    const email = newToEmail.trim();
+    if (email && !toEmails.includes(email) && email.includes('@')) {
+      setToEmails([...toEmails, email]);
+      setNewToEmail('');
+      // Update formData with first email as primary
+      if (toEmails.length === 0) {
+        setFormData({ ...formData, recipientEmail: email });
+      }
+    }
+  };
+
+  const removeToEmail = (email: string) => {
+    const newList = toEmails.filter(e => e !== email);
+    setToEmails(newList);
+    // Update formData with first remaining email
+    setFormData({ ...formData, recipientEmail: newList[0] || '' });
+  };
+
+  const addCcEmail = () => {
+    const email = newCcEmail.trim();
+    if (email && !ccEmails.includes(email) && email.includes('@')) {
+      setCcEmails([...ccEmails, email]);
+      setNewCcEmail('');
+    }
+  };
+
+  const removeCcEmail = (email: string) => {
+    setCcEmails(ccEmails.filter(e => e !== email));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size must be less than 10MB');
+        return;
+      }
+      setAttachment(file);
+    }
+  };
 
   const handleCreate = async () => {
     setIsLoading(true);
@@ -67,7 +128,7 @@ export function TermSheetGenerator({ open, onOpenChange, deal, existingTermSheet
       valuationCap: formData.valuationCap,
       discountRate: formData.discountRate,
       proRataRights: formData.proRataRights,
-      recipientEmail: formData.recipientEmail,
+      recipientEmail: toEmails[0] || formData.recipientEmail,
     });
     setIsLoading(false);
     onOpenChange(false);
@@ -82,15 +143,39 @@ export function TermSheetGenerator({ open, onOpenChange, deal, existingTermSheet
       valuationCap: formData.valuationCap,
       discountRate: formData.discountRate,
       proRataRights: formData.proRataRights,
-      recipientEmail: formData.recipientEmail,
+      recipientEmail: toEmails[0] || formData.recipientEmail,
     });
     setIsLoading(false);
   };
 
   const handleSend = async () => {
     if (!existingTermSheet) return;
+    if (toEmails.length === 0) {
+      alert('Please add at least one recipient email');
+      return;
+    }
+    
     setIsSending(true);
-    await sendTermSheet(existingTermSheet.id);
+    
+    // Convert attachment to base64 if present
+    let attachmentData: { name: string; content: string; type: string } | undefined;
+    if (attachment) {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]); // Remove data:...;base64, prefix
+        };
+        reader.readAsDataURL(attachment);
+      });
+      attachmentData = {
+        name: attachment.name,
+        content: base64,
+        type: attachment.type,
+      };
+    }
+    
+    await sendTermSheet(existingTermSheet.id, toEmails, ccEmails, attachmentData);
     setIsSending(false);
   };
 
@@ -210,16 +295,117 @@ export function TermSheetGenerator({ open, onOpenChange, deal, existingTermSheet
                 </div>
               )}
 
-              {/* Recipient */}
-              <div className="space-y-2">
-                <Label>Recipient Email</Label>
-                <Input
-                  type="email"
-                  value={formData.recipientEmail}
-                  onChange={(e) => setFormData({ ...formData, recipientEmail: e.target.value })}
-                  placeholder="founder@startup.com"
-                  disabled={isReadOnly}
-                />
+              {/* Recipients Section */}
+              <div className="space-y-4 border-t pt-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Send className="w-4 h-4" />
+                  Email Recipients
+                </h3>
+                
+                {/* To Emails */}
+                <div className="space-y-2">
+                  <Label>To (Recipients)</Label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {toEmails.map((email) => (
+                      <Badge key={email} variant="secondary" className="gap-1">
+                        {email}
+                        {!isReadOnly && (
+                          <X
+                            className="w-3 h-3 cursor-pointer hover:text-destructive"
+                            onClick={() => removeToEmail(email)}
+                          />
+                        )}
+                      </Badge>
+                    ))}
+                  </div>
+                  {!isReadOnly && (
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        value={newToEmail}
+                        onChange={(e) => setNewToEmail(e.target.value)}
+                        placeholder="Add recipient email"
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addToEmail())}
+                      />
+                      <Button type="button" variant="outline" onClick={addToEmail}>
+                        Add
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* CC Emails */}
+                <div className="space-y-2">
+                  <Label>CC (Optional)</Label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {ccEmails.map((email) => (
+                      <Badge key={email} variant="outline" className="gap-1">
+                        {email}
+                        {!isReadOnly && (
+                          <X
+                            className="w-3 h-3 cursor-pointer hover:text-destructive"
+                            onClick={() => removeCcEmail(email)}
+                          />
+                        )}
+                      </Badge>
+                    ))}
+                  </div>
+                  {!isReadOnly && (
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        value={newCcEmail}
+                        onChange={(e) => setNewCcEmail(e.target.value)}
+                        placeholder="Add CC email"
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCcEmail())}
+                      />
+                      <Button type="button" variant="outline" onClick={addCcEmail}>
+                        Add
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Attachment */}
+                <div className="space-y-2">
+                  <Label>Attachment (Optional)</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx"
+                      disabled={isReadOnly}
+                    />
+                    {attachment ? (
+                      <div className="flex items-center gap-2 p-2 bg-muted rounded-md flex-1">
+                        <Paperclip className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm flex-1 truncate">{attachment.name}</span>
+                        {!isReadOnly && (
+                          <X
+                            className="w-4 h-4 cursor-pointer hover:text-destructive"
+                            onClick={() => setAttachment(null)}
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isReadOnly}
+                        className="gap-2"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Upload Document
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    PDF, Word, or Excel files up to 10MB
+                  </p>
+                </div>
               </div>
 
               {/* Status Info */}
@@ -243,7 +429,7 @@ export function TermSheetGenerator({ open, onOpenChange, deal, existingTermSheet
                     <Button variant="outline" onClick={handleUpdate} disabled={isLoading}>
                       Save Changes
                     </Button>
-                    <Button onClick={handleSend} disabled={isSending || !formData.recipientEmail}>
+                    <Button onClick={handleSend} disabled={isSending || toEmails.length === 0}>
                       {isSending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
                       Send to Founder
                     </Button>

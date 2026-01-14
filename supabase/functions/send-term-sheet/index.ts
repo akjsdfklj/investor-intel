@@ -6,8 +6,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface AttachmentData {
+  name: string;
+  content: string;
+  type: string;
+}
+
 interface SendTermSheetRequest {
   termSheetId: string;
+  toEmails?: string[];
+  ccEmails?: string[];
+  attachment?: AttachmentData;
 }
 
 serve(async (req) => {
@@ -21,8 +30,11 @@ serve(async (req) => {
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { termSheetId }: SendTermSheetRequest = await req.json();
+    const { termSheetId, toEmails, ccEmails, attachment }: SendTermSheetRequest = await req.json();
     console.log('Sending term sheet:', termSheetId);
+    console.log('To:', toEmails);
+    console.log('CC:', ccEmails);
+    console.log('Has attachment:', !!attachment);
 
     // Fetch term sheet
     const { data: termSheet, error: tsError } = await supabase
@@ -39,7 +51,12 @@ serve(async (req) => {
       );
     }
 
-    if (!termSheet.recipient_email) {
+    // Use provided emails or fall back to stored recipient
+    const recipients = toEmails && toEmails.length > 0 
+      ? toEmails 
+      : (termSheet.recipient_email ? [termSheet.recipient_email] : []);
+
+    if (recipients.length === 0) {
       return new Response(
         JSON.stringify({ error: 'No recipient email configured' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -85,7 +102,7 @@ serve(async (req) => {
           <p><strong>Pro-Rata Rights:</strong> ${termSheet.pro_rata_rights ? 'Yes' : 'No'}</p>
         </div>
         
-        <p>Please review the attached term sheet and let us know if you have any questions.</p>
+        <p>Please review the ${attachment ? 'attached' : ''} term sheet and let us know if you have any questions.</p>
         
         <p>Best regards,<br>Investment Team</p>
         
@@ -97,18 +114,36 @@ serve(async (req) => {
     // If Resend API key is configured, send the email
     if (resendApiKey) {
       try {
+        // Prepare email options
+        const emailOptions: any = {
+          from: 'Investment Team <onboarding@resend.dev>',
+          to: recipients,
+          subject: `Term Sheet: ${deal.name}`,
+          html: emailHtml,
+        };
+
+        // Add CC if provided
+        if (ccEmails && ccEmails.length > 0) {
+          emailOptions.cc = ccEmails;
+        }
+
+        // Add attachment if provided
+        if (attachment) {
+          emailOptions.attachments = [
+            {
+              filename: attachment.name,
+              content: attachment.content,
+            },
+          ];
+        }
+
         const response = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${resendApiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            from: 'Investment Team <onboarding@resend.dev>',
-            to: [termSheet.recipient_email],
-            subject: `Term Sheet: ${deal.name}`,
-            html: emailHtml,
-          }),
+          body: JSON.stringify(emailOptions),
         });
 
         if (!response.ok) {
@@ -116,7 +151,8 @@ serve(async (req) => {
           console.error('Resend error:', errorData);
           // Don't fail - just log the error and continue
         } else {
-          console.log('Email sent successfully via Resend');
+          const responseData = await response.json();
+          console.log('Email sent successfully via Resend:', responseData);
         }
       } catch (emailError) {
         console.error('Email sending failed:', emailError);
@@ -133,6 +169,7 @@ serve(async (req) => {
         status: 'sent',
         sent_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        recipient_email: recipients[0], // Store the primary recipient
       })
       .eq('id', termSheetId);
 
@@ -144,6 +181,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true,
         message: resendApiKey ? 'Term sheet sent via email' : 'Term sheet marked as sent (email not configured)',
+        sentTo: recipients,
+        ccTo: ccEmails || [],
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

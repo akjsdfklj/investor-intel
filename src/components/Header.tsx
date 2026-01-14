@@ -30,6 +30,15 @@ export function Header() {
             Pipeline
           </Button>
           <Button
+            variant={location.pathname === '/deep-dd' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => navigate('/deep-dd')}
+            className="hidden lg:flex items-center gap-2"
+          >
+            <Search className="w-4 h-4" />
+            Deep DD
+          </Button>
+          <Button
             variant={location.pathname === '/deal-sources' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => navigate('/deal-sources')}
@@ -64,15 +73,6 @@ export function Header() {
           >
             <FileStack className="w-4 h-4" />
             Bulk DD
-          </Button>
-          <Button
-            variant={location.pathname === '/deep-dd' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => navigate('/deep-dd')}
-            className="hidden lg:flex items-center gap-2"
-          >
-            <Search className="w-4 h-4" />
-            Deep DD
           </Button>
           <div className="hidden xl:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
             <Sparkles className="w-4 h-4 text-primary" />
