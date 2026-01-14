@@ -1,4 +1,4 @@
-import { DealSource } from '@/types';
+import { DealSource, GSheetsConfig, AirtableConfig } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { RefreshCw, MoreVertical, Trash2, Settings, Table2, FileSpreadsheet } from 'lucide-react';
+import { RefreshCw, MoreVertical, Trash2, Settings, Table2, FileSpreadsheet, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
 
@@ -45,6 +45,27 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
 
   const SourceIcon = source.sourceType === 'airtable' ? Table2 : FileSpreadsheet;
 
+  // Get source URL for external link
+  const getSourceUrl = () => {
+    if (source.sourceType === 'gsheets') {
+      const config = source.config as GSheetsConfig;
+      return `https://docs.google.com/spreadsheets/d/${config.sheetId}`;
+    } else {
+      const config = source.config as AirtableConfig;
+      return `https://airtable.com/${config.baseId}`;
+    }
+  };
+
+  const getSourceDetails = () => {
+    if (source.sourceType === 'gsheets') {
+      const config = source.config as GSheetsConfig;
+      return `Sheet: ${config.sheetName || 'Sheet1'}`;
+    } else {
+      const config = source.config as AirtableConfig;
+      return `Table: ${config.tableName}`;
+    }
+  };
+
   return (
     <Card className="hover:border-primary/30 transition-colors">
       <CardContent className="p-6">
@@ -58,9 +79,21 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
                 <h3 className="font-semibold text-lg">{source.name}</h3>
                 {getStatusBadge()}
               </div>
-              <p className="text-sm text-muted-foreground capitalize mb-2">
-                {source.sourceType === 'airtable' ? 'Airtable' : 'Google Sheets'}
-              </p>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-sm text-muted-foreground capitalize">
+                  {source.sourceType === 'airtable' ? 'Airtable' : 'Google Sheets'}
+                </p>
+                <span className="text-muted-foreground">•</span>
+                <p className="text-sm text-muted-foreground">{getSourceDetails()}</p>
+                <a
+                  href={getSourceUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-0.5 text-sm"
+                >
+                  Open <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
               {source.lastSyncAt && (
                 <p className="text-xs text-muted-foreground">
                   Last synced {formatDistanceToNow(new Date(source.lastSyncAt), { addSuffix: true })}

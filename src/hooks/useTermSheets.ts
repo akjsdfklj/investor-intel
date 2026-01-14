@@ -13,6 +13,12 @@ interface CreateTermSheetInput {
   recipientEmail?: string;
 }
 
+interface AttachmentData {
+  name: string;
+  content: string;
+  type: string;
+}
+
 function mapDbToTermSheet(row: any): TermSheet {
   return {
     id: row.id,
@@ -122,13 +128,23 @@ export function useTermSheets() {
     return true;
   };
 
-  const sendTermSheet = async (id: string): Promise<boolean> => {
+  const sendTermSheet = async (
+    id: string, 
+    toEmails?: string[], 
+    ccEmails?: string[], 
+    attachment?: AttachmentData
+  ): Promise<boolean> => {
     const termSheet = termSheets.find(ts => ts.id === id);
     if (!termSheet) return false;
 
     try {
       const { data, error } = await supabase.functions.invoke('send-term-sheet', {
-        body: { termSheetId: id },
+        body: { 
+          termSheetId: id,
+          toEmails: toEmails || [termSheet.recipientEmail],
+          ccEmails: ccEmails || [],
+          attachment,
+        },
       });
 
       if (error) throw error;
