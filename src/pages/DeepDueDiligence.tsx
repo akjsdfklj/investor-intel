@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search, Globe, TrendingUp, Users, Shield, Target, DollarSign, BarChart3, Zap, AlertTriangle, CheckCircle, XCircle, Building2, Briefcase, ArrowUpRight, ArrowDownRight, Minus} from 'lucide-react';
+import { Loader2, Search, Globe, TrendingUp, Users, Shield, Target, DollarSign, BarChart3, Zap, AlertTriangle, CheckCircle, XCircle, Building2, Briefcase, ArrowUpRight, ArrowDownRight, Minus, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -160,6 +160,166 @@ export default function DeepDueDiligence() {
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState('');
   const [result, setResult] = useState<DeepDDResult | null>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const downloadPDF = useCallback(() => {
+    if (!result || !reportRef.current) return;
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({ title: 'Error', description: 'Please allow popups to download PDF', variant: 'destructive' });
+      return;
+    }
+
+    const content = reportRef.current.innerHTML;
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Deep Due Diligence - ${result.companyName}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; line-height: 1.6; color: #1a1a1a; }
+            h1, h2, h3, h4 { margin-bottom: 12px; }
+            h1 { font-size: 28px; color: #0f172a; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; }
+            h2 { font-size: 20px; color: #1e40af; margin-top: 24px; }
+            h3 { font-size: 16px; color: #334155; }
+            p, li { margin-bottom: 8px; font-size: 14px; }
+            ul { padding-left: 20px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+            .score { font-size: 48px; font-weight: bold; color: #3b82f6; }
+            .section { margin-bottom: 24px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+            .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+            .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+            .metric { text-align: center; padding: 12px; background: white; border-radius: 6px; border: 1px solid #e2e8f0; }
+            .metric-value { font-size: 24px; font-weight: bold; color: #3b82f6; }
+            .metric-label { font-size: 12px; color: #64748b; }
+            .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+            .badge-green { background: #dcfce7; color: #166534; }
+            .badge-yellow { background: #fef9c3; color: #854d0e; }
+            .badge-red { background: #fee2e2; color: #991b1b; }
+            .badge-blue { background: #dbeafe; color: #1e40af; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { padding: 8px 12px; text-align: left; border: 1px solid #e2e8f0; font-size: 13px; }
+            th { background: #f1f5f9; font-weight: 600; }
+            .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; }
+            @media print { body { padding: 20px; } .section { break-inside: avoid; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>Deep Due Diligence Report</h1>
+              <p><strong>${result.companyName}</strong>${result.websiteUrl ? ` • ${result.websiteUrl}` : ''}</p>
+              <p style="color: #64748b; font-size: 12px;">Generated: ${new Date(result.generatedAt).toLocaleDateString()}</p>
+            </div>
+            <div style="text-align: right;">
+              <div class="score">${result.executiveSummary.investmentScore}</div>
+              <div style="font-size: 12px; color: #64748b;">Investment Score</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>Executive Summary</h2>
+            <p><span class="badge badge-${result.executiveSummary.verdict.includes('pass') && !result.executiveSummary.verdict.includes('concerns') ? 'green' : result.executiveSummary.verdict === 'conditional' || result.executiveSummary.verdict === 'pass_with_concerns' ? 'yellow' : 'red'}">${result.executiveSummary.verdict.replace(/_/g, ' ').toUpperCase()}</span></p>
+            <p style="font-size: 16px; margin: 12px 0;">${result.executiveSummary.oneLiner}</p>
+            <div class="grid">
+              <div>
+                <h4 style="color: #166534;">Key Highlights</h4>
+                <ul>${result.executiveSummary.keyHighlights.map(h => `<li>${h}</li>`).join('')}</ul>
+              </div>
+              <div>
+                <h4 style="color: #991b1b;">Critical Risks</h4>
+                <ul>${result.executiveSummary.criticalRisks.map(r => `<li>${r}</li>`).join('')}</ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>TAM Analysis</h2>
+            <div class="grid-4">
+              <div class="metric"><div class="metric-value">${formatCurrency(result.tamAnalysis.tam)}</div><div class="metric-label">TAM</div></div>
+              <div class="metric"><div class="metric-value">${formatCurrency(result.tamAnalysis.sam)}</div><div class="metric-label">SAM</div></div>
+              <div class="metric"><div class="metric-value">${formatCurrency(result.tamAnalysis.som)}</div><div class="metric-label">SOM</div></div>
+              <div class="metric"><div class="metric-value">${result.tamAnalysis.cagr}%</div><div class="metric-label">CAGR</div></div>
+            </div>
+            <p style="margin-top: 12px;"><strong>Methodology:</strong> ${result.tamAnalysis.methodology}</p>
+            <p><span class="badge badge-${result.tamAnalysis.validation === 'validated' ? 'green' : result.tamAnalysis.validation === 'questionable' ? 'yellow' : 'red'}">Validation: ${result.tamAnalysis.validation}</span></p>
+          </div>
+
+          <div class="section">
+            <h2>Moat Analysis</h2>
+            <p><strong>Overall Score:</strong> ${result.moatAnalysis.overallScore}/10</p>
+            <p><strong>Time to Replicate:</strong> ${result.moatAnalysis.timeToReplicate}</p>
+            <p><strong>Sustainability:</strong> ${result.moatAnalysis.sustainability}</p>
+            <table>
+              <tr><th>Moat Type</th><th>Strength</th><th>Reasoning</th></tr>
+              ${result.moatAnalysis.moatTypes.map(m => `<tr><td>${m.type}</td><td><span class="badge badge-${m.strength === 'strong' ? 'green' : m.strength === 'moderate' ? 'yellow' : 'red'}">${m.strength}</span></td><td>${m.reasoning}</td></tr>`).join('')}
+            </table>
+          </div>
+
+          <div class="section">
+            <h2>Competitor Analysis</h2>
+            <table>
+              <tr><th>Name</th><th>Stage</th><th>Total Funding</th><th>Valuation</th><th>Position</th></tr>
+              ${result.competitorAnalysis.directCompetitors.map(c => `<tr><td><strong>${c.name}</strong><br/><span style="font-size:11px;color:#64748b;">${c.country}</span></td><td>${c.fundingStage}</td><td>${formatCurrency(c.totalFunding)}</td><td>${c.valuation ? formatCurrency(c.valuation) : 'N/A'}</td><td><span class="badge badge-blue">${c.marketPosition}</span></td></tr>`).join('')}
+            </table>
+          </div>
+
+          <div class="section">
+            <h2>Unit Economics</h2>
+            <p><span class="badge badge-${result.unitEconomics.assessment === 'excellent' || result.unitEconomics.assessment === 'good' ? 'green' : result.unitEconomics.assessment === 'average' ? 'yellow' : 'red'}">${result.unitEconomics.assessment.toUpperCase()}</span></p>
+            <div class="grid-4" style="margin-top: 12px;">
+              <div class="metric"><div class="metric-value">${result.unitEconomics.ltv ? formatCurrency(result.unitEconomics.ltv) : 'N/A'}</div><div class="metric-label">LTV</div></div>
+              <div class="metric"><div class="metric-value">${result.unitEconomics.cac ? formatCurrency(result.unitEconomics.cac) : 'N/A'}</div><div class="metric-label">CAC</div></div>
+              <div class="metric"><div class="metric-value">${result.unitEconomics.ltvCacRatio ? result.unitEconomics.ltvCacRatio.toFixed(1) + 'x' : 'N/A'}</div><div class="metric-label">LTV/CAC</div></div>
+              <div class="metric"><div class="metric-value">${result.unitEconomics.grossMargin ? result.unitEconomics.grossMargin + '%' : 'N/A'}</div><div class="metric-label">Gross Margin</div></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>Risk Assessment</h2>
+            <p><strong>Overall Risk:</strong> <span class="badge badge-${result.riskAssessment.overallRisk === 'low' ? 'green' : result.riskAssessment.overallRisk === 'medium' ? 'yellow' : 'red'}">${result.riskAssessment.overallRisk.toUpperCase()}</span></p>
+            <div class="grid" style="margin-top: 12px;">
+              ${result.riskAssessment.categories.map(cat => `<div><h4>${cat.category}</h4><span class="badge badge-${cat.level === 'low' ? 'green' : cat.level === 'medium' ? 'yellow' : 'red'}">${cat.level}</span><ul>${cat.factors.map(f => `<li>${f}</li>`).join('')}</ul></div>`).join('')}
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>Investment Thesis</h2>
+            <p><span class="badge badge-${result.investmentThesis.recommendation.includes('invest') && !result.investmentThesis.recommendation.includes('pass') ? 'green' : result.investmentThesis.recommendation === 'conditional' ? 'yellow' : 'red'}">${result.investmentThesis.recommendation.replace(/_/g, ' ').toUpperCase()}</span></p>
+            <p style="margin-top: 12px;">${result.investmentThesis.reasoning}</p>
+            <h4 style="margin-top: 16px;">Key Metrics vs Benchmarks</h4>
+            <table>
+              <tr><th>Metric</th><th>Value</th><th>Benchmark</th><th>Status</th></tr>
+              ${result.investmentThesis.keyMetrics.map(km => `<tr><td>${km.metric}</td><td>${km.value}</td><td>${km.benchmark}</td><td><span class="badge badge-${km.status === 'above' ? 'green' : km.status === 'at' ? 'yellow' : 'red'}">${km.status}</span></td></tr>`).join('')}
+            </table>
+          </div>
+
+          <div class="footer">
+            <p>Generated by Deep Due Diligence AI • ${new Date().toLocaleString()}</p>
+            <p>This report is for informational purposes only and does not constitute investment advice.</p>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    
+    // Wait for content to load, then print
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+    
+    // Fallback if onload doesn't fire
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
+
+    toast({ title: 'PDF Ready', description: 'Use your browser\'s print dialog to save as PDF' });
+  }, [result, toast]);
 
   const runDeepDD = useCallback(async () => {
     if (!companyName.trim()) {
@@ -349,10 +509,19 @@ export default function DeepDueDiligence() {
                     </a>
                   )}
                 </div>
-                <Button variant="outline" onClick={() => setResult(null)}>
-                  New Analysis
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={downloadPDF}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download PDF
+                  </Button>
+                  <Button variant="outline" onClick={() => setResult(null)}>
+                    New Analysis
+                  </Button>
+                </div>
               </div>
+
+              {/* Hidden ref for PDF generation */}
+              <div ref={reportRef} className="sr-only" aria-hidden="true" />
 
               {/* Executive Summary Card */}
               <Card className="border-2 border-primary/20">
