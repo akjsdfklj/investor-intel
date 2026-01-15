@@ -14,6 +14,7 @@ import PortfolioCompanyDetail from "./pages/PortfolioCompanyDetail";
 import DealSources from "./pages/DealSources";
 import TermSheets from "./pages/TermSheets";
 import NotFound from "./pages/NotFound";
+import { AIResearchChat } from "./components/AIResearchChat";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <AIResearchChat />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
