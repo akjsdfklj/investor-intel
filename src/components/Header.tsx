@@ -30,15 +30,6 @@ export function Header() {
             Pipeline
           </Button>
           <Button
-            variant={location.pathname === '/deep-dd' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => navigate('/deep-dd')}
-            className="hidden lg:flex items-center gap-2"
-          >
-            <Search className="w-4 h-4" />
-            Deep DD
-          </Button>
-          <Button
             variant={location.pathname === '/deal-sources' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => navigate('/deal-sources')}
@@ -46,6 +37,15 @@ export function Header() {
           >
             <Database className="w-4 h-4" />
             Sources
+          </Button>
+          <Button
+            variant={location.pathname === '/deep-dd' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => navigate('/deep-dd')}
+            className="hidden lg:flex items-center gap-2"
+          >
+            <Search className="w-4 h-4" />
+            Deep DD
           </Button>
           <Button
             variant={location.pathname === '/term-sheets' ? 'secondary' : 'ghost'}

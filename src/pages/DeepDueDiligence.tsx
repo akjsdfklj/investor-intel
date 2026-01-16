@@ -7,7 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search, Globe, TrendingUp, Users, Shield, Target, DollarSign, BarChart3, Zap, AlertTriangle, CheckCircle, XCircle, Building2, Briefcase, ArrowUpRight, ArrowDownRight, Minus, Download } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Loader2, Search, Globe, TrendingUp, Users, Shield, Target, DollarSign, BarChart3, Zap, AlertTriangle, CheckCircle, XCircle, Building2, Briefcase, ArrowUpRight, ArrowDownRight, Minus, Download, Send, X, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -161,6 +163,122 @@ export default function DeepDueDiligence() {
   const [progressMessage, setProgressMessage] = useState('');
   const [result, setResult] = useState<DeepDDResult | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+  
+  // Email dialog state
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [toEmails, setToEmails] = useState<string[]>([]);
+  const [ccEmails, setCcEmails] = useState<string[]>([]);
+  const [newToEmail, setNewToEmail] = useState('');
+  const [newCcEmail, setNewCcEmail] = useState('');
+
+  const addToEmail = () => {
+    const email = newToEmail.trim();
+    if (email && !toEmails.includes(email) && email.includes('@')) {
+      setToEmails([...toEmails, email]);
+      setNewToEmail('');
+    }
+  };
+
+  const removeToEmail = (email: string) => {
+    setToEmails(toEmails.filter(e => e !== email));
+  };
+
+  const addCcEmail = () => {
+    const email = newCcEmail.trim();
+    if (email && !ccEmails.includes(email) && email.includes('@')) {
+      setCcEmails([...ccEmails, email]);
+      setNewCcEmail('');
+    }
+  };
+
+  const removeCcEmail = (email: string) => {
+    setCcEmails(ccEmails.filter(e => e !== email));
+  };
+
+  const generateReportHtml = useCallback(() => {
+    if (!result) return '';
+    
+    return `
+      <div class="section">
+        <h2>Executive Summary</h2>
+        <p><strong>Verdict:</strong> ${result.executiveSummary.verdict.replace(/_/g, ' ').toUpperCase()}</p>
+        <p>${result.executiveSummary.oneLiner}</p>
+        <p><strong>Investment Score:</strong> ${result.executiveSummary.investmentScore}/100</p>
+        <h4>Key Highlights</h4>
+        <ul>${result.executiveSummary.keyHighlights.map(h => `<li>${h}</li>`).join('')}</ul>
+        <h4>Critical Risks</h4>
+        <ul>${result.executiveSummary.criticalRisks.map(r => `<li>${r}</li>`).join('')}</ul>
+      </div>
+      
+      <div class="section">
+        <h2>TAM Analysis</h2>
+        <p><strong>TAM:</strong> ${formatCurrency(result.tamAnalysis.tam)} | <strong>SAM:</strong> ${formatCurrency(result.tamAnalysis.sam)} | <strong>SOM:</strong> ${formatCurrency(result.tamAnalysis.som)}</p>
+        <p><strong>CAGR:</strong> ${result.tamAnalysis.cagr}%</p>
+        <p><strong>Validation:</strong> ${result.tamAnalysis.validation}</p>
+      </div>
+      
+      <div class="section">
+        <h2>Moat Analysis</h2>
+        <p><strong>Overall Score:</strong> ${result.moatAnalysis.overallScore}/10</p>
+        <p><strong>Time to Replicate:</strong> ${result.moatAnalysis.timeToReplicate}</p>
+        <p>${result.moatAnalysis.sustainability}</p>
+      </div>
+      
+      <div class="section">
+        <h2>Risk Assessment</h2>
+        <p><strong>Overall Risk:</strong> ${result.riskAssessment.overallRisk.toUpperCase()}</p>
+        ${result.riskAssessment.categories.map(cat => `
+          <h4>${cat.category} (${cat.level})</h4>
+          <ul>${cat.factors.map(f => `<li>${f}</li>`).join('')}</ul>
+        `).join('')}
+      </div>
+      
+      <div class="section">
+        <h2>Investment Thesis</h2>
+        <p><strong>Recommendation:</strong> ${result.investmentThesis.recommendation.replace(/_/g, ' ').toUpperCase()}</p>
+        <p>${result.investmentThesis.reasoning}</p>
+      </div>
+    `;
+  }, [result]);
+
+  const sendEmail = useCallback(async () => {
+    if (!result || toEmails.length === 0) return;
+    
+    setIsSendingEmail(true);
+    try {
+      const reportHtml = generateReportHtml();
+      
+      const { data, error } = await supabase.functions.invoke('send-dd-report', {
+        body: {
+          companyName: result.companyName,
+          recipientEmails: toEmails,
+          ccEmails: ccEmails.length > 0 ? ccEmails : undefined,
+          reportHtml,
+        },
+      });
+
+      if (error) throw new Error(error.message);
+      
+      if (data.success) {
+        toast({ title: 'Email Sent', description: `DD report sent to ${toEmails.join(', ')}` });
+        setShowEmailDialog(false);
+        setToEmails([]);
+        setCcEmails([]);
+      } else {
+        throw new Error(data.error || 'Failed to send email');
+      }
+    } catch (error) {
+      console.error('Send email error:', error);
+      toast({
+        title: 'Failed to Send',
+        description: error instanceof Error ? error.message : 'Failed to send email',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  }, [result, toEmails, ccEmails, generateReportHtml, toast]);
 
   const downloadPDF = useCallback(() => {
     if (!result || !reportRef.current) return;
@@ -513,6 +631,10 @@ export default function DeepDueDiligence() {
                   <Button variant="outline" onClick={downloadPDF}>
                     <Download className="w-4 h-4 mr-2" />
                     Download PDF
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowEmailDialog(true)}>
+                    <Mail className="w-4 h-4 mr-2" />
+                    Send Email
                   </Button>
                   <Button variant="outline" onClick={() => setResult(null)}>
                     New Analysis
@@ -1082,6 +1204,104 @@ export default function DeepDueDiligence() {
           )}
         </div>
       </main>
+
+      {/* Email Dialog */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5" />
+              Send DD Report via Email
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* To Emails */}
+            <div className="space-y-2">
+              <Label>To (Recipients) *</Label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {toEmails.map((email) => (
+                  <Badge key={email} variant="secondary" className="gap-1">
+                    {email}
+                    <X
+                      className="w-3 h-3 cursor-pointer hover:text-destructive"
+                      onClick={() => removeToEmail(email)}
+                    />
+                  </Badge>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  value={newToEmail}
+                  onChange={(e) => setNewToEmail(e.target.value)}
+                  placeholder="Add recipient email"
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addToEmail())}
+                />
+                <Button type="button" variant="outline" onClick={addToEmail}>
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            {/* CC Emails */}
+            <div className="space-y-2">
+              <Label>CC (Optional)</Label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {ccEmails.map((email) => (
+                  <Badge key={email} variant="outline" className="gap-1">
+                    {email}
+                    <X
+                      className="w-3 h-3 cursor-pointer hover:text-destructive"
+                      onClick={() => removeCcEmail(email)}
+                    />
+                  </Badge>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  value={newCcEmail}
+                  onChange={(e) => setNewCcEmail(e.target.value)}
+                  placeholder="Add CC email"
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCcEmail())}
+                />
+                <Button type="button" variant="outline" onClick={addCcEmail}>
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            {result && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium">Report Summary</p>
+                <p className="text-sm text-muted-foreground">
+                  Deep Due Diligence report for <strong>{result.companyName}</strong> will be sent as an HTML email.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={sendEmail} disabled={isSendingEmail || toEmails.length === 0}>
+              {isSendingEmail ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Report
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
