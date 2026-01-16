@@ -42,3 +42,18 @@ verify_jwt = false
 
 [functions.send-term-sheet]
 verify_jwt = false
+
+[functions.send-dd-report]
+verify_jwt = false
+
+[functions.sync-gsheets]
+verify_jwt = false
+
+[functions.sync-airtable]
+verify_jwt = false
+
+[functions.deep-due-diligence]
+verify_jwt = false
+
+[functions.research-assistant]
+verify_jwt = false
