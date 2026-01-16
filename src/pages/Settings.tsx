@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { IntegrationCard, ConnectionStatus as IntegrationStatus } from '@/components/IntegrationCard';
+import { GoogleSheetsAuth } from '@/components/settings/GoogleSheetsAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -371,6 +372,8 @@ export default function Settings() {
                   Configure external services for deal sourcing and management
                 </p>
               </div>
+
+              <GoogleSheetsAuth />
 
               <IntegrationCard
                 name="Airtable"

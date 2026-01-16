@@ -266,6 +266,39 @@ export type Database = {
           },
         ]
       }
+      google_oauth_tokens: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string
+          id: string
+          refresh_token: string | null
+          scopes: string[] | null
+          updated_at: string
+          user_email: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          refresh_token?: string | null
+          scopes?: string[] | null
+          updated_at?: string
+          user_email: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          refresh_token?: string | null
+          scopes?: string[] | null
+          updated_at?: string
+          user_email?: string
+        }
+        Relationships: []
+      }
       ic_reviews: {
         Row: {
           comments: string | null
