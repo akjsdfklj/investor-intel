@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -11,10 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table2, FileSpreadsheet, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
+import { Table2, FileSpreadsheet, Loader2, ExternalLink, AlertCircle, CheckCircle2, Settings } from 'lucide-react';
 import { useDealSources } from '@/hooks/useDealSources';
 import { AirtableConfig, GSheetsConfig, FieldMapping } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 interface AddSourceDialogProps {
   open: boolean;
@@ -34,8 +36,39 @@ const defaultFieldMapping: FieldMapping = {
 
 export function AddSourceDialog({ open, onOpenChange }: AddSourceDialogProps) {
   const { createSource } = useDealSources();
+  const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sourceType, setSourceType] = useState<'airtable' | 'gsheets'>('gsheets');
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+
+  // Check Google connection status
+  useEffect(() => {
+    const checkGoogleConnection = async () => {
+      try {
+        const { data } = await supabase
+          .from('google_oauth_tokens')
+          .select('user_email')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (data) {
+          setGoogleConnected(true);
+          setGoogleEmail((data as { user_email: string }).user_email);
+        } else {
+          setGoogleConnected(false);
+          setGoogleEmail(null);
+        }
+      } catch (error) {
+        console.error('Failed to check Google connection:', error);
+      }
+    };
+
+    if (open) {
+      checkGoogleConnection();
+    }
+  }, [open]);
 
   // Airtable fields
   const [airtableName, setAirtableName] = useState('');
@@ -116,12 +149,34 @@ export function AddSourceDialog({ open, onOpenChange }: AddSourceDialogProps) {
           </TabsList>
 
           <TabsContent value="gsheets" className="space-y-4 mt-4">
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Important:</strong> Make sure your Google Sheet is shared as <strong>"Anyone with the link"</strong> with <strong>Viewer</strong> access for the sync to work.
-              </AlertDescription>
-            </Alert>
+            {googleConnected ? (
+              <Alert className="border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-900">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800 dark:text-green-200">
+                  <strong>Google Account Connected:</strong> {googleEmail}
+                  <br />
+                  <span className="text-sm">You can sync private sheets shared with this account, or public sheets.</span>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Public sheets only:</strong> Connect your Google account in{' '}
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      onOpenChange(false);
+                      navigate('/settings');
+                    }}
+                    className="text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Settings <Settings className="w-3 h-3" />
+                  </button>
+                  {' '}to access private sheets, or share as "Anyone with the link".
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="gsheets-name">Source Name</Label>

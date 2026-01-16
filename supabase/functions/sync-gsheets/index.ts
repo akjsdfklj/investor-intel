@@ -17,6 +17,18 @@ interface GSheetsConfig {
   fieldMapping: Record<string, string>;
 }
 
+interface OAuthToken {
+  access_token: string;
+  refresh_token: string | null;
+  expires_at: string;
+  user_email: string;
+}
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID');
+const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET');
+
 function extractSheetId(urlOrId: string): string {
   if (!urlOrId.includes('/')) {
     return urlOrId;
@@ -64,15 +76,145 @@ function parseCSV(csvText: string): Record<string, string>[] {
   return rows;
 }
 
+// deno-lint-ignore no-explicit-any
+async function getValidAccessToken(supabase: any): Promise<string | null> {
+  // Get stored OAuth token
+  const { data: tokenData, error: tokenError } = await supabase
+    .from('google_oauth_tokens')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (tokenError || !tokenData) {
+    console.log('No OAuth token found, will use public CSV method');
+    return null;
+  }
+
+  const token = tokenData as OAuthToken;
+  const expiresAt = new Date(token.expires_at);
+  
+  // If token is still valid (with 5 minute buffer)
+  if (expiresAt > new Date(Date.now() + 5 * 60 * 1000)) {
+    return token.access_token;
+  }
+
+  // Token expired, try to refresh
+  if (token.refresh_token && GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+    console.log('Refreshing expired access token...');
+    try {
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          refresh_token: token.refresh_token,
+          grant_type: 'refresh_token',
+        }),
+      });
+
+      const tokens = await tokenResponse.json();
+
+      if (tokens.error) {
+        console.error('Token refresh failed:', tokens.error);
+        return null;
+      }
+
+      // Update token in database
+      const newExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+      await supabase
+        .from('google_oauth_tokens')
+        .update({
+          access_token: tokens.access_token,
+          expires_at: newExpiresAt.toISOString(),
+        })
+        .eq('user_email', token.user_email);
+
+      return tokens.access_token;
+    } catch (err) {
+      console.error('Failed to refresh token:', err);
+      return null;
+    }
+  }
+
+  console.log('Token expired and cannot be refreshed');
+  return null;
+}
+
+async function fetchSheetWithAPI(sheetId: string, accessToken: string, sheetName?: string): Promise<Record<string, string>[] | null> {
+  try {
+    const range = sheetName ? encodeURIComponent(sheetName) : 'Sheet1';
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`;
+    
+    console.log('Fetching sheet via API:', url);
+    
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Sheets API error:', response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    const values = data.values as string[][];
+
+    if (!values || values.length < 2) {
+      return [];
+    }
+
+    const headers = values[0];
+    const rows: Record<string, string>[] = [];
+
+    for (let i = 1; i < values.length; i++) {
+      const row: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        row[header] = values[i][index] || '';
+      });
+      rows.push(row);
+    }
+
+    return rows;
+  } catch (err) {
+    console.error('Sheets API fetch error:', err);
+    return null;
+  }
+}
+
+async function fetchSheetWithCSV(sheetId: string): Promise<{ rows: Record<string, string>[] | null; error?: string }> {
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+  
+  console.log('Fetching sheet via public CSV:', csvUrl);
+  
+  const response = await fetch(csvUrl);
+
+  if (!response.ok) {
+    console.error('CSV fetch error:', response.status, response.statusText);
+    return { 
+      rows: null, 
+      error: 'Failed to fetch Google Sheet. Make sure the sheet is publicly accessible (Anyone with the link can view), or connect your Google account in Settings.' 
+    };
+  }
+
+  const csvText = await response.text();
+  const rows = parseCSV(csvText);
+  return { rows };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     const { sourceId }: SyncRequest = await req.json();
 
@@ -100,34 +242,44 @@ serve(async (req) => {
     const config = source.config as GSheetsConfig;
     const sheetId = extractSheetId(config.sheetId);
     
-    console.log('Fetching Google Sheet:', sheetId);
+    console.log('Syncing Google Sheet:', sheetId);
 
-    // Fetch sheet data as CSV (works for public sheets without API key)
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+    // Try OAuth API first, fall back to public CSV
+    let rows: Record<string, string>[] | null = null;
+    let fetchError: string | undefined;
     
-    const sheetsResponse = await fetch(csvUrl);
-
-    if (!sheetsResponse.ok) {
-      console.error('Google Sheets fetch error:', sheetsResponse.status, sheetsResponse.statusText);
+    const accessToken = await getValidAccessToken(supabase);
+    
+    if (accessToken) {
+      console.log('Using OAuth API access...');
+      rows = await fetchSheetWithAPI(sheetId, accessToken, config.sheetName);
       
+      if (rows === null) {
+        console.log('API fetch failed, falling back to public CSV...');
+      }
+    }
+    
+    // Fall back to public CSV if API didn't work
+    if (rows === null) {
+      console.log('Using public CSV access...');
+      const csvResult = await fetchSheetWithCSV(sheetId);
+      rows = csvResult.rows;
+      fetchError = csvResult.error;
+    }
+
+    if (rows === null) {
       await supabase
         .from('deal_sources')
         .update({ sync_status: 'error' })
         .eq('id', sourceId);
 
       return new Response(
-        JSON.stringify({ 
-          error: 'Failed to fetch Google Sheet. Make sure the sheet is publicly accessible (Anyone with the link can view).' 
-        }),
+        JSON.stringify({ error: fetchError || 'Failed to fetch sheet data' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const csvText = await sheetsResponse.text();
-    console.log('CSV data received, length:', csvText.length);
-    
-    const rows = parseCSV(csvText);
-    console.log('Parsed rows:', rows.length);
+    console.log('Fetched rows:', rows.length);
 
     if (rows.length === 0) {
       await supabase
@@ -157,7 +309,7 @@ serve(async (req) => {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const rowId = `row_${i + 2}`; // +2 because CSV is 0-indexed and we skip header
+      const rowId = `row_${i + 2}`; // +2 because data is 0-indexed and we skip header
 
       try {
         // Get the startup name (required field)
@@ -264,6 +416,7 @@ serve(async (req) => {
         dealsUpdated,
         dealsFailed,
         errors,
+        method: accessToken ? 'oauth_api' : 'public_csv',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
