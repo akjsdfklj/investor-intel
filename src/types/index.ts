@@ -608,7 +608,7 @@ export interface PortfolioKPI {
 }
 
 // Deal Source Types
-export type DealSourceType = 'airtable' | 'gsheets';
+export type DealSourceType = 'airtable' | 'gsheets' | 'notion';
 export type SyncStatus = 'pending' | 'syncing' | 'success' | 'error';
 
 export interface FieldMapping {
@@ -636,11 +636,17 @@ export interface GSheetsConfig {
   fieldMapping: FieldMapping;
 }
 
+export interface NotionConfig {
+  databaseId: string;
+  databaseUrl: string;
+  fieldMapping: FieldMapping;
+}
+
 export interface DealSource {
   id: string;
   name: string;
   sourceType: DealSourceType;
-  config: AirtableConfig | GSheetsConfig;
+  config: AirtableConfig | GSheetsConfig | NotionConfig;
   isActive: boolean;
   syncStatus: SyncStatus;
   lastSyncAt?: string;
