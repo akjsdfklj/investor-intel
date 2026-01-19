@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { DealSource, DealSourceType, AirtableConfig, GSheetsConfig, SyncResult } from '@/types';
+import { DealSource, DealSourceType, AirtableConfig, GSheetsConfig, NotionConfig, SyncResult } from '@/types';
 import { toast } from 'sonner';
 
 export function useDealSources() {
   const [sources, setSources] = useState<DealSource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const fetchSources = async () => {
     setIsLoading(true);
     try {
@@ -45,7 +44,7 @@ export function useDealSources() {
   const createSource = async (
     name: string,
     sourceType: DealSourceType,
-    config: AirtableConfig | GSheetsConfig
+    config: AirtableConfig | GSheetsConfig | NotionConfig
   ) => {
     try {
       const { data, error } = await supabase
@@ -74,7 +73,7 @@ export function useDealSources() {
 
   const updateSource = async (
     id: string,
-    updates: Partial<{ name: string; config: AirtableConfig | GSheetsConfig; isActive: boolean }>
+    updates: Partial<{ name: string; config: AirtableConfig | GSheetsConfig | NotionConfig; isActive: boolean }>
   ) => {
     try {
       const dbUpdates: Record<string, unknown> = {};
@@ -116,7 +115,7 @@ export function useDealSources() {
     }
   };
 
-  const syncSource = async (id: string): Promise<SyncResult | null> => {
+  const syncSource = async (id: string, notionData?: { pages: any[] }): Promise<SyncResult | null> => {
     const source = sources.find((s) => s.id === id);
     if (!source) {
       toast.error('Source not found');
@@ -131,10 +130,25 @@ export function useDealSources() {
         .eq('id', id);
 
       // Call appropriate edge function
-      const functionName = source.sourceType === 'airtable' ? 'sync-airtable' : 'sync-gsheets';
+      let functionName: string;
+      let requestBody: Record<string, unknown>;
+      
+      if (source.sourceType === 'notion') {
+        if (!notionData || !notionData.pages) {
+          throw new Error('Notion data is required for Notion sources. Use the Notion sync flow.');
+        }
+        functionName = 'sync-notion';
+        requestBody = { sourceId: id, notionData };
+      } else if (source.sourceType === 'airtable') {
+        functionName = 'sync-airtable';
+        requestBody = { sourceId: id };
+      } else {
+        functionName = 'sync-gsheets';
+        requestBody = { sourceId: id };
+      }
       
       const { data, error } = await supabase.functions.invoke(functionName, {
-        body: { sourceId: id },
+        body: requestBody,
       });
 
       if (error) throw error;

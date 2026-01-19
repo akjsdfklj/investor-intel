@@ -1,4 +1,4 @@
-import { DealSource, GSheetsConfig, AirtableConfig } from '@/types';
+import { DealSource, GSheetsConfig, AirtableConfig, NotionConfig } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { RefreshCw, MoreVertical, Trash2, Settings, Table2, FileSpreadsheet, ExternalLink } from 'lucide-react';
+import { RefreshCw, MoreVertical, Trash2, Settings, Table2, FileSpreadsheet, ExternalLink, BookOpen } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
 
@@ -43,13 +43,27 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
     }
   };
 
-  const SourceIcon = source.sourceType === 'airtable' ? Table2 : FileSpreadsheet;
+  const getSourceIcon = () => {
+    switch (source.sourceType) {
+      case 'airtable':
+        return Table2;
+      case 'notion':
+        return BookOpen;
+      default:
+        return FileSpreadsheet;
+    }
+  };
+
+  const SourceIcon = getSourceIcon();
 
   // Get source URL for external link
   const getSourceUrl = () => {
     if (source.sourceType === 'gsheets') {
       const config = source.config as GSheetsConfig;
       return `https://docs.google.com/spreadsheets/d/${config.sheetId}`;
+    } else if (source.sourceType === 'notion') {
+      const config = source.config as NotionConfig;
+      return config.databaseUrl;
     } else {
       const config = source.config as AirtableConfig;
       return `https://airtable.com/${config.baseId}`;
@@ -60,9 +74,23 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
     if (source.sourceType === 'gsheets') {
       const config = source.config as GSheetsConfig;
       return `Sheet: ${config.sheetName || 'Sheet1'}`;
+    } else if (source.sourceType === 'notion') {
+      const config = source.config as NotionConfig;
+      return `Database ID: ${config.databaseId.slice(0, 8)}...`;
     } else {
       const config = source.config as AirtableConfig;
       return `Table: ${config.tableName}`;
+    }
+  };
+
+  const getSourceTypeName = () => {
+    switch (source.sourceType) {
+      case 'airtable':
+        return 'Airtable';
+      case 'notion':
+        return 'Notion';
+      default:
+        return 'Google Sheets';
     }
   };
 
@@ -81,7 +109,7 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
               </div>
               <div className="flex items-center gap-2 mb-1">
                 <p className="text-sm text-muted-foreground capitalize">
-                  {source.sourceType === 'airtable' ? 'Airtable' : 'Google Sheets'}
+                  {getSourceTypeName()}
                 </p>
                 <span className="text-muted-foreground">•</span>
                 <p className="text-sm text-muted-foreground">{getSourceDetails()}</p>
