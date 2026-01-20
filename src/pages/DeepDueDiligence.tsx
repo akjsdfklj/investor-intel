@@ -9,9 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2, Search, Globe, TrendingUp, Users, Shield, Target, DollarSign, BarChart3, Zap, AlertTriangle, CheckCircle, XCircle, Building2, Briefcase, ArrowUpRight, ArrowDownRight, Minus, Download, Send, X, Mail } from 'lucide-react';
+import { Loader2, Search, Globe, TrendingUp, Users, Shield, Target, DollarSign, BarChart3, Zap, AlertTriangle, CheckCircle, XCircle, Building2, Briefcase, ArrowUpRight, ArrowDownRight, Minus, Download, Send, X, Mail, Database } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { DealSourceDDSelector } from '@/components/DealSourceDDSelector';
+import { PipelineDeal } from '@/types';
 
 interface DeepDDResult {
   companyName: string;
@@ -497,6 +499,94 @@ export default function DeepDueDiligence() {
     }
   }, [companyName, websiteUrl, additionalContext, toast]);
 
+  // Handler for running DD on a deal from external sources
+  const runDeepDDFromSource = useCallback(async (deal: PipelineDeal) => {
+    setIsAnalyzing(true);
+    setProgress(0);
+    setResult(null);
+    
+    // Pre-fill form fields for reference
+    setCompanyName(deal.name);
+    setWebsiteUrl(deal.websiteUrl || '');
+    
+    // Build additional context from deal metadata
+    const contextParts: string[] = [];
+    if (deal.description) contextParts.push(`Description: ${deal.description}`);
+    if (deal.founderName) contextParts.push(`Founder: ${deal.founderName}`);
+    if (deal.founderEmail) contextParts.push(`Founder Email: ${deal.founderEmail}`);
+    if (deal.sector) contextParts.push(`Sector: ${deal.sector}`);
+    if (deal.askAmount) contextParts.push(`Raise Amount: $${deal.askAmount.toLocaleString()}`);
+    if (deal.valuation) contextParts.push(`Valuation: $${deal.valuation.toLocaleString()}`);
+    if (deal.pitchDeckContent) contextParts.push(`Pitch Deck Content: ${deal.pitchDeckContent}`);
+    
+    const combinedContext = contextParts.join('\n');
+    setAdditionalContext(combinedContext);
+
+    try {
+      // Step 1: Scrape website if URL exists
+      setProgressMessage('Scraping website content...');
+      setProgress(10);
+      
+      let scrapedContent = '';
+      if (deal.websiteUrl) {
+        const { data: scrapeData, error: scrapeError } = await supabase.functions.invoke('scrape-website', {
+          body: { url: deal.websiteUrl },
+        });
+        
+        if (!scrapeError && scrapeData?.markdown) {
+          scrapedContent = scrapeData.markdown;
+        }
+      }
+
+      setProgressMessage('Analyzing founder, market, and thesis...');
+      setProgress(30);
+
+      // Step 2: Call deep DD edge function with all deal data
+      const { data, error } = await supabase.functions.invoke('deep-due-diligence', {
+        body: {
+          companyName: deal.name,
+          websiteUrl: deal.websiteUrl || '',
+          scrapedContent,
+          additionalContext: combinedContext,
+          // Pass structured deal data for enhanced analysis
+          dealData: {
+            founderName: deal.founderName,
+            founderEmail: deal.founderEmail,
+            sector: deal.sector,
+            askAmount: deal.askAmount,
+            valuation: deal.valuation,
+            pitchDeckContent: deal.pitchDeckContent,
+            sourceType: deal.sourceType,
+          },
+        },
+      });
+
+      if (error) throw new Error(error.message);
+
+      setProgress(100);
+      setProgressMessage('Analysis complete!');
+      setResult(data);
+      
+      // Update the pipeline deal with DD report reference if needed
+      if (data && deal.id) {
+        // The deep-due-diligence function doesn't save to db, but we could add that
+        toast({ 
+          title: 'Deep DD Complete', 
+          description: `Comprehensive analysis generated for ${deal.name}` 
+        });
+      }
+    } catch (error) {
+      console.error('Deep DD from source error:', error);
+      toast({
+        title: 'Analysis Failed',
+        description: error instanceof Error ? error.message : 'Failed to generate analysis',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [toast]);
+
   const getVerdictColor = (verdict: string) => {
     switch (verdict) {
       case 'strong_pass': return 'bg-green-500/10 text-green-600 border-green-500/30';
@@ -540,77 +630,105 @@ export default function DeepDueDiligence() {
             </p>
           </div>
 
-          {/* Input Form */}
+          {/* Input Options */}
           {!result && (
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Search className="w-5 h-5" />
-                  Analyze a Company
-                </CardTitle>
-                <CardDescription>
-                  Enter company details for comprehensive due diligence analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Company Name *</label>
-                    <Input
-                      placeholder="e.g., Stripe, Notion, Figma"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      disabled={isAnalyzing}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Website URL</label>
-                    <Input
-                      placeholder="https://example.com"
-                      value={websiteUrl}
-                      onChange={(e) => setWebsiteUrl(e.target.value)}
-                      disabled={isAnalyzing}
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Additional Context (Optional)</label>
-                  <Textarea
-                    placeholder="Any additional information: pitch deck notes, founder backgrounds, known metrics, sector focus..."
-                    value={additionalContext}
-                    onChange={(e) => setAdditionalContext(e.target.value)}
-                    disabled={isAnalyzing}
-                    rows={3}
-                  />
-                </div>
+            <div className="space-y-6 mb-8">
+              {/* Analysis Progress (shown when analyzing) */}
+              {isAnalyzing && (
+                <Card className="border-primary/30">
+                  <CardContent className="py-8">
+                    <div className="text-center space-y-4">
+                      <Loader2 className="w-12 h-12 mx-auto animate-spin text-primary" />
+                      <div className="space-y-2">
+                        <Progress value={progress} className="h-2 max-w-md mx-auto" />
+                        <p className="text-sm text-muted-foreground">{progressMessage}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-                <Button
-                  onClick={runDeepDD}
-                  disabled={isAnalyzing || !companyName.trim()}
-                  className="w-full gradient-primary text-white"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 mr-2" />
-                      Run Deep Due Diligence
-                    </>
-                  )}
-                </Button>
+              {/* Input Tabs - Manual vs Deal Sources */}
+              {!isAnalyzing && (
+                <Tabs defaultValue="sources" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsTrigger value="sources" className="flex items-center gap-2">
+                      <Database className="w-4 h-4" />
+                      From Deal Sources
+                    </TabsTrigger>
+                    <TabsTrigger value="manual" className="flex items-center gap-2">
+                      <Search className="w-4 h-4" />
+                      Manual Entry
+                    </TabsTrigger>
+                  </TabsList>
 
-                {isAnalyzing && (
-                  <div className="space-y-2">
-                    <Progress value={progress} className="h-2" />
-                    <p className="text-sm text-muted-foreground text-center">{progressMessage}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  {/* Deal Sources Tab */}
+                  <TabsContent value="sources">
+                    <DealSourceDDSelector 
+                      onSelectDeal={runDeepDDFromSource}
+                      isAnalyzing={isAnalyzing}
+                    />
+                  </TabsContent>
+
+                  {/* Manual Entry Tab */}
+                  <TabsContent value="manual">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Search className="w-5 h-5" />
+                          Analyze a Company
+                        </CardTitle>
+                        <CardDescription>
+                          Enter company details for comprehensive due diligence analysis
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Company Name *</label>
+                            <Input
+                              placeholder="e.g., Stripe, Notion, Figma"
+                              value={companyName}
+                              onChange={(e) => setCompanyName(e.target.value)}
+                              disabled={isAnalyzing}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Website URL</label>
+                            <Input
+                              placeholder="https://example.com"
+                              value={websiteUrl}
+                              onChange={(e) => setWebsiteUrl(e.target.value)}
+                              disabled={isAnalyzing}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Additional Context (Optional)</label>
+                          <Textarea
+                            placeholder="Any additional information: pitch deck notes, founder backgrounds, known metrics, sector focus..."
+                            value={additionalContext}
+                            onChange={(e) => setAdditionalContext(e.target.value)}
+                            disabled={isAnalyzing}
+                            rows={3}
+                          />
+                        </div>
+
+                        <Button
+                          onClick={runDeepDD}
+                          disabled={isAnalyzing || !companyName.trim()}
+                          className="w-full gradient-primary text-white"
+                        >
+                          <Zap className="w-4 h-4 mr-2" />
+                          Run Deep Due Diligence
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              )}
+            </div>
           )}
 
           {/* Results */}
