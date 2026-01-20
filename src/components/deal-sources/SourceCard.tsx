@@ -6,9 +6,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { RefreshCw, MoreVertical, Trash2, Settings, Table2, FileSpreadsheet, ExternalLink, BookOpen } from 'lucide-react';
+import { RefreshCw, MoreVertical, Trash2, ExternalLink, Table2, FileSpreadsheet, BookOpen, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
 
@@ -31,15 +32,44 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
   };
 
   const getStatusBadge = () => {
+    if (isSyncing) {
+      return (
+        <Badge variant="default" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+          Syncing...
+        </Badge>
+      );
+    }
+    
     switch (source.syncStatus) {
       case 'success':
-        return <Badge variant="default" className="bg-green-500/10 text-green-600 border-green-500/20">Connected</Badge>;
+        return (
+          <Badge variant="default" className="bg-green-500/10 text-green-600 border-green-500/20">
+            <CheckCircle2 className="w-3 h-3 mr-1" />
+            Connected
+          </Badge>
+        );
       case 'syncing':
-        return <Badge variant="default" className="bg-blue-500/10 text-blue-600 border-blue-500/20">Syncing...</Badge>;
+        return (
+          <Badge variant="default" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+            Syncing...
+          </Badge>
+        );
       case 'error':
-        return <Badge variant="destructive">Error</Badge>;
+        return (
+          <Badge variant="destructive">
+            <XCircle className="w-3 h-3 mr-1" />
+            Error
+          </Badge>
+        );
       default:
-        return <Badge variant="secondary">Pending</Badge>;
+        return (
+          <Badge variant="secondary">
+            <Clock className="w-3 h-3 mr-1" />
+            Not synced
+          </Badge>
+        );
     }
   };
 
@@ -94,6 +124,13 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
     }
   };
 
+  const handleOpenSource = () => {
+    const url = getSourceUrl();
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
     <Card className="hover:border-primary/30 transition-colors">
       <CardContent className="p-6">
@@ -113,18 +150,15 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
                 </p>
                 <span className="text-muted-foreground">•</span>
                 <p className="text-sm text-muted-foreground">{getSourceDetails()}</p>
-                <a
-                  href={getSourceUrl()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-0.5 text-sm"
-                >
-                  Open <ExternalLink className="w-3 h-3" />
-                </a>
               </div>
               {source.lastSyncAt && (
                 <p className="text-xs text-muted-foreground">
                   Last synced {formatDistanceToNow(new Date(source.lastSyncAt), { addSuffix: true })}
+                </p>
+              )}
+              {!source.lastSyncAt && source.syncStatus === 'pending' && (
+                <p className="text-xs text-muted-foreground">
+                  Never synced - click "Sync Now" to import deals
                 </p>
               )}
             </div>
@@ -138,7 +172,7 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
               disabled={isSyncing || source.syncStatus === 'syncing'}
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-              Sync Now
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
             </Button>
 
             <DropdownMenu>
@@ -148,10 +182,11 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
-                  <Settings className="w-4 h-4 mr-2" />
-                  Configure
+                <DropdownMenuItem onClick={handleOpenSource}>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open in {getSourceTypeName()}
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={onDelete}
