@@ -29,6 +29,19 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID');
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET');
 
+// Column name fallbacks for flexible matching
+const COLUMN_FALLBACKS: Record<string, string[]> = {
+  name: ['Company Name', 'Startup Name', 'Name', 'Company', 'Startup', 'Title', 'Startup/Company Name', 'Organization'],
+  website_url: ['Website', 'Website URL', 'URL', 'Site', 'Web', 'Homepage', 'Company Website'],
+  description: ['Description', 'Key Product/Service', 'Product', 'Service', 'About', 'Summary', 'Overview', 'What they do'],
+  sector: ['Sector', 'Industry', 'Category', 'Vertical', 'Space', 'Market', 'Domain'],
+  founder_name: ['Founder', 'Founder Name', 'Founders', 'CEO', 'Team Lead', 'Contact Name', 'Contact'],
+  founder_email: ['Email', 'Founder Email', 'Contact Email', 'E-mail', 'Mail'],
+  valuation: ['Valuation', 'Valuation (USD)', 'Current Valuation', 'Pre-Money Valuation', 'Post-Money Valuation'],
+  ask_amount: ['Ask', 'Ask Amount', 'Raise', 'Raising', 'Funding Ask', 'Investment Ask', 'Amount Raising', 'Raise Amount'],
+  pitch_deck_url: ['Pitch Deck', 'Pitch Deck (Link)', 'Deck', 'Deck URL', 'Deck Link', 'Presentation'],
+};
+
 function extractSheetId(urlOrId: string): string {
   if (!urlOrId.includes('/')) {
     return urlOrId;
@@ -37,9 +50,41 @@ function extractSheetId(urlOrId: string): string {
   return match ? match[1] : urlOrId;
 }
 
-function parseCSV(csvText: string): Record<string, string>[] {
+// Case-insensitive column matching with fallbacks
+function findColumnValue(row: Record<string, string>, fieldName: string, customMapping?: string): string | undefined {
+  const headers = Object.keys(row);
+  
+  // First try custom mapping if provided
+  if (customMapping) {
+    const exactMatch = headers.find(h => h === customMapping);
+    if (exactMatch && row[exactMatch]) return row[exactMatch];
+    
+    const caseInsensitive = headers.find(h => h.toLowerCase() === customMapping.toLowerCase());
+    if (caseInsensitive && row[caseInsensitive]) return row[caseInsensitive];
+  }
+  
+  // Try fallback column names
+  const fallbacks = COLUMN_FALLBACKS[fieldName] || [];
+  for (const fallback of fallbacks) {
+    // Try exact match first
+    const exactMatch = headers.find(h => h === fallback);
+    if (exactMatch && row[exactMatch]) return row[exactMatch];
+    
+    // Try case-insensitive match
+    const caseInsensitive = headers.find(h => h.toLowerCase() === fallback.toLowerCase());
+    if (caseInsensitive && row[caseInsensitive]) return row[caseInsensitive];
+    
+    // Try partial match (header contains the fallback term)
+    const partialMatch = headers.find(h => h.toLowerCase().includes(fallback.toLowerCase()));
+    if (partialMatch && row[partialMatch]) return row[partialMatch];
+  }
+  
+  return undefined;
+}
+
+function parseCSV(csvText: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = csvText.split('\n').filter(line => line.trim());
-  if (lines.length < 2) return [];
+  if (lines.length < 1) return { headers: [], rows: [] };
 
   const parseRow = (row: string): string[] => {
     const values: string[] = [];
@@ -73,12 +118,11 @@ function parseCSV(csvText: string): Record<string, string>[] {
     rows.push(row);
   }
 
-  return rows;
+  return { headers, rows };
 }
 
 // deno-lint-ignore no-explicit-any
 async function getValidAccessToken(supabase: any): Promise<string | null> {
-  // Get stored OAuth token
   const { data: tokenData, error: tokenError } = await supabase
     .from('google_oauth_tokens')
     .select('*')
@@ -94,12 +138,10 @@ async function getValidAccessToken(supabase: any): Promise<string | null> {
   const token = tokenData as OAuthToken;
   const expiresAt = new Date(token.expires_at);
   
-  // If token is still valid (with 5 minute buffer)
   if (expiresAt > new Date(Date.now() + 5 * 60 * 1000)) {
     return token.access_token;
   }
 
-  // Token expired, try to refresh
   if (token.refresh_token && GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
     console.log('Refreshing expired access token...');
     try {
@@ -123,7 +165,6 @@ async function getValidAccessToken(supabase: any): Promise<string | null> {
         return null;
       }
 
-      // Update token in database
       const newExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
       await supabase
         .from('google_oauth_tokens')
@@ -144,7 +185,7 @@ async function getValidAccessToken(supabase: any): Promise<string | null> {
   return null;
 }
 
-async function fetchSheetWithAPI(sheetId: string, accessToken: string, sheetName?: string): Promise<Record<string, string>[] | null> {
+async function fetchSheetWithAPI(sheetId: string, accessToken: string, sheetName?: string): Promise<{ headers: string[]; rows: Record<string, string>[] } | null> {
   try {
     const range = sheetName ? encodeURIComponent(sheetName) : 'Sheet1';
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`;
@@ -166,8 +207,8 @@ async function fetchSheetWithAPI(sheetId: string, accessToken: string, sheetName
     const data = await response.json();
     const values = data.values as string[][];
 
-    if (!values || values.length < 2) {
-      return [];
+    if (!values || values.length < 1) {
+      return { headers: [], rows: [] };
     }
 
     const headers = values[0];
@@ -181,14 +222,14 @@ async function fetchSheetWithAPI(sheetId: string, accessToken: string, sheetName
       rows.push(row);
     }
 
-    return rows;
+    return { headers, rows };
   } catch (err) {
     console.error('Sheets API fetch error:', err);
     return null;
   }
 }
 
-async function fetchSheetWithCSV(sheetId: string): Promise<{ rows: Record<string, string>[] | null; error?: string }> {
+async function fetchSheetWithCSV(sheetId: string): Promise<{ headers: string[]; rows: Record<string, string>[] | null; error?: string }> {
   const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
   
   console.log('Fetching sheet via public CSV:', csvUrl);
@@ -198,14 +239,15 @@ async function fetchSheetWithCSV(sheetId: string): Promise<{ rows: Record<string
   if (!response.ok) {
     console.error('CSV fetch error:', response.status, response.statusText);
     return { 
+      headers: [],
       rows: null, 
       error: 'Failed to fetch Google Sheet. Make sure the sheet is publicly accessible (Anyone with the link can view), or connect your Google account in Settings.' 
     };
   }
 
   const csvText = await response.text();
-  const rows = parseCSV(csvText);
-  return { rows };
+  const { headers, rows } = parseCSV(csvText);
+  return { headers, rows };
 }
 
 serve(async (req) => {
@@ -225,7 +267,6 @@ serve(async (req) => {
       );
     }
 
-    // Fetch source configuration
     const { data: source, error: sourceError } = await supabase
       .from('deal_sources')
       .select('*')
@@ -244,7 +285,7 @@ serve(async (req) => {
     
     console.log('Syncing Google Sheet:', sheetId);
 
-    // Try OAuth API first, fall back to public CSV
+    let headers: string[] = [];
     let rows: Record<string, string>[] | null = null;
     let fetchError: string | undefined;
     
@@ -252,17 +293,20 @@ serve(async (req) => {
     
     if (accessToken) {
       console.log('Using OAuth API access...');
-      rows = await fetchSheetWithAPI(sheetId, accessToken, config.sheetName);
+      const apiResult = await fetchSheetWithAPI(sheetId, accessToken, config.sheetName);
       
-      if (rows === null) {
+      if (apiResult) {
+        headers = apiResult.headers;
+        rows = apiResult.rows;
+      } else {
         console.log('API fetch failed, falling back to public CSV...');
       }
     }
     
-    // Fall back to public CSV if API didn't work
     if (rows === null) {
       console.log('Using public CSV access...');
       const csvResult = await fetchSheetWithCSV(sheetId);
+      headers = csvResult.headers;
       rows = csvResult.rows;
       fetchError = csvResult.error;
     }
@@ -279,7 +323,9 @@ serve(async (req) => {
       );
     }
 
-    console.log('Fetched rows:', rows.length);
+    // Log actual headers found for debugging
+    console.log('Sheet headers found:', headers);
+    console.log('Total rows fetched:', rows.length);
 
     if (rows.length === 0) {
       await supabase
@@ -288,19 +334,21 @@ serve(async (req) => {
         .eq('id', sourceId);
       
       return new Response(
-        JSON.stringify({ dealsCreated: 0, dealsUpdated: 0, dealsFailed: 0, errors: [], message: 'No data found in sheet' }),
+        JSON.stringify({ 
+          dealsCreated: 0, 
+          dealsUpdated: 0, 
+          dealsFailed: 0, 
+          errors: [], 
+          message: 'No data found in sheet',
+          columnsFound: headers 
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Default field mapping based on common sheet structures
-    const fieldMapping = config.fieldMapping || {
-      name: 'Startup Name',
-      sector: 'Industry',
-      valuation: 'Valuation (USD)',
-      description: 'Key Product/Service',
-      pitch_deck_url: 'Pitch Deck (Link)',
-    };
+    const fieldMapping = config.fieldMapping || {};
+    const mappedFields: string[] = [];
+    const unmappedFields: string[] = [];
 
     let dealsCreated = 0;
     let dealsUpdated = 0;
@@ -309,17 +357,18 @@ serve(async (req) => {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const rowId = `row_${i + 2}`; // +2 because data is 0-indexed and we skip header
+      const rowId = `row_${i + 2}`;
 
       try {
-        // Get the startup name (required field)
-        const nameField = fieldMapping.name || 'Startup Name';
-        const name = row[nameField];
+        // Get the startup name using flexible matching
+        const name = findColumnValue(row, 'name', fieldMapping.name);
         
         if (!name || name.trim() === '') {
-          console.log('Skipping row without name');
+          console.log(`Skipping row ${i + 2}: no name found`);
           continue;
         }
+
+        if (i === 0) mappedFields.push('name');
 
         const dealData: Record<string, unknown> = {
           name: name.trim(),
@@ -328,42 +377,59 @@ serve(async (req) => {
           stage: 'sourcing',
         };
 
-        // Map other fields
-        if (fieldMapping.sector && row[fieldMapping.sector]) {
-          dealData.sector = row[fieldMapping.sector];
+        // Map all fields with flexible matching
+        const sectorValue = findColumnValue(row, 'sector', fieldMapping.sector);
+        if (sectorValue) {
+          dealData.sector = sectorValue;
+          if (i === 0) mappedFields.push('sector');
         }
-        if (fieldMapping.description && row[fieldMapping.description]) {
-          dealData.description = row[fieldMapping.description];
+
+        const descValue = findColumnValue(row, 'description', fieldMapping.description);
+        if (descValue) {
+          dealData.description = descValue;
+          if (i === 0) mappedFields.push('description');
         }
-        if (fieldMapping.website_url && row[fieldMapping.website_url]) {
-          const url = row[fieldMapping.website_url];
-          if (url.startsWith('http')) {
-            dealData.website_url = url;
-          }
+
+        const websiteValue = findColumnValue(row, 'website_url', fieldMapping.website_url);
+        if (websiteValue && (websiteValue.startsWith('http') || websiteValue.includes('.'))) {
+          dealData.website_url = websiteValue.startsWith('http') ? websiteValue : `https://${websiteValue}`;
+          if (i === 0) mappedFields.push('website_url');
         }
-        if (fieldMapping.valuation && row[fieldMapping.valuation]) {
-          const valuation = parseFloat(row[fieldMapping.valuation].replace(/[^0-9.]/g, ''));
+
+        const valuationValue = findColumnValue(row, 'valuation', fieldMapping.valuation);
+        if (valuationValue) {
+          const valuation = parseFloat(valuationValue.replace(/[^0-9.]/g, ''));
           if (!isNaN(valuation)) {
             dealData.valuation = valuation;
+            if (i === 0) mappedFields.push('valuation');
           }
         }
-        if (fieldMapping.ask_amount && row[fieldMapping.ask_amount]) {
-          const askAmount = parseFloat(row[fieldMapping.ask_amount].replace(/[^0-9.]/g, ''));
+
+        const askValue = findColumnValue(row, 'ask_amount', fieldMapping.ask_amount);
+        if (askValue) {
+          const askAmount = parseFloat(askValue.replace(/[^0-9.]/g, ''));
           if (!isNaN(askAmount)) {
             dealData.ask_amount = askAmount;
+            if (i === 0) mappedFields.push('ask_amount');
           }
         }
-        if (fieldMapping.pitch_deck_url && row[fieldMapping.pitch_deck_url]) {
-          const url = row[fieldMapping.pitch_deck_url];
-          if (url.startsWith('http')) {
-            dealData.pitch_deck_url = url;
-          }
+
+        const pitchDeckValue = findColumnValue(row, 'pitch_deck_url', fieldMapping.pitch_deck_url);
+        if (pitchDeckValue && pitchDeckValue.startsWith('http')) {
+          dealData.pitch_deck_url = pitchDeckValue;
+          if (i === 0) mappedFields.push('pitch_deck_url');
         }
-        if (fieldMapping.founder_email && row[fieldMapping.founder_email]) {
-          dealData.founder_email = row[fieldMapping.founder_email];
+
+        const founderEmailValue = findColumnValue(row, 'founder_email', fieldMapping.founder_email);
+        if (founderEmailValue && founderEmailValue.includes('@')) {
+          dealData.founder_email = founderEmailValue;
+          if (i === 0) mappedFields.push('founder_email');
         }
-        if (fieldMapping.founder_name && row[fieldMapping.founder_name]) {
-          dealData.founder_name = row[fieldMapping.founder_name];
+
+        const founderNameValue = findColumnValue(row, 'founder_name', fieldMapping.founder_name);
+        if (founderNameValue) {
+          dealData.founder_name = founderNameValue;
+          if (i === 0) mappedFields.push('founder_name');
         }
 
         // Check if deal already exists
@@ -397,16 +463,27 @@ serve(async (req) => {
       }
     }
 
+    // Identify unmapped fields
+    const allFields = ['name', 'sector', 'description', 'website_url', 'valuation', 'ask_amount', 'pitch_deck_url', 'founder_email', 'founder_name'];
+    for (const field of allFields) {
+      if (!mappedFields.includes(field)) {
+        unmappedFields.push(field);
+      }
+    }
+
     // Update source sync status
+    const syncStatus = (dealsCreated + dealsUpdated) > 0 ? 'success' : (dealsFailed > 0 ? 'error' : 'success');
     await supabase
       .from('deal_sources')
       .update({
-        sync_status: 'success',
+        sync_status: syncStatus,
         last_sync_at: new Date().toISOString(),
       })
       .eq('id', sourceId);
 
     console.log(`Sync complete: ${dealsCreated} created, ${dealsUpdated} updated, ${dealsFailed} failed`);
+    console.log(`Mapped fields: ${mappedFields.join(', ')}`);
+    console.log(`Unmapped fields: ${unmappedFields.join(', ')}`);
 
     return new Response(
       JSON.stringify({
@@ -417,6 +494,9 @@ serve(async (req) => {
         dealsFailed,
         errors,
         method: accessToken ? 'oauth_api' : 'public_csv',
+        columnsFound: headers,
+        mappedFields,
+        unmappedFields,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
