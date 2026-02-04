@@ -6,34 +6,13 @@ import { useDealSources } from '@/hooks/useDealSources';
 import { SourceCard } from '@/components/deal-sources/SourceCard';
 import { AddSourceDialog } from '@/components/deal-sources/AddSourceDialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { NotionConfig } from '@/types';
-import { toast } from 'sonner';
 
 export default function DealSources() {
   const { sources, isLoading, syncSource, deleteSource, refetch } = useDealSources();
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  // Handle sync with special Notion flow
+  // Handle sync for all source types uniformly
   const handleSync = async (sourceId: string) => {
-    const source = sources.find(s => s.id === sourceId);
-    if (!source) return;
-
-    if (source.sourceType === 'notion') {
-      // For Notion sources, we need to inform the user that sync happens via the MCP
-      // The actual sync will be triggered via the Lovable agent's MCP integration
-      toast.info('Notion sync initiated. The Lovable agent will fetch data from your Notion database.');
-      
-      // Note: In a real implementation, this would trigger the MCP to fetch Notion data
-      // and then call syncSource with the fetched data. Since MCP tools are used by the agent,
-      // we show a message indicating that the agent will handle this.
-      console.log('Notion source sync requested:', {
-        sourceId,
-        databaseId: (source.config as NotionConfig).databaseId,
-      });
-      return;
-    }
-
-    // For other source types, proceed normally
     await syncSource(sourceId);
   };
 

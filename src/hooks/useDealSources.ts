@@ -115,7 +115,7 @@ export function useDealSources() {
     }
   };
 
-  const syncSource = async (id: string, notionData?: { pages: any[] }): Promise<SyncResult | null> => {
+  const syncSource = async (id: string): Promise<SyncResult | null> => {
     const source = sources.find((s) => s.id === id);
     if (!source) {
       toast.error('Source not found');
@@ -129,31 +129,35 @@ export function useDealSources() {
         .update({ sync_status: 'syncing' })
         .eq('id', id);
 
-      // Call appropriate edge function
+      // Determine the edge function based on source type
       let functionName: string;
-      let requestBody: Record<string, unknown>;
-      
       if (source.sourceType === 'notion') {
-        if (!notionData || !notionData.pages) {
-          throw new Error('Notion data is required for Notion sources. Use the Notion sync flow.');
-        }
         functionName = 'sync-notion';
-        requestBody = { sourceId: id, notionData };
       } else if (source.sourceType === 'airtable') {
         functionName = 'sync-airtable';
-        requestBody = { sourceId: id };
       } else {
         functionName = 'sync-gsheets';
-        requestBody = { sourceId: id };
       }
       
       const { data, error } = await supabase.functions.invoke(functionName, {
-        body: requestBody,
+        body: { sourceId: id },
       });
 
       if (error) throw error;
 
-      toast.success(`Synced ${data.dealsCreated} new deals, updated ${data.dealsUpdated}`);
+      // Show detailed sync results
+      const created = data.dealsCreated || 0;
+      const updated = data.dealsUpdated || 0;
+      const failed = data.dealsFailed || 0;
+      
+      if (created + updated > 0) {
+        toast.success(`Synced ${created} new deals, updated ${updated}${failed > 0 ? `, ${failed} failed` : ''}`);
+      } else if (failed > 0) {
+        toast.warning(`Sync completed but ${failed} deals failed to import`);
+      } else {
+        toast.info('No new deals found to import');
+      }
+      
       await fetchSources();
       
       return data as SyncResult;
