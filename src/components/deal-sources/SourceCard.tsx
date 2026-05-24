@@ -9,9 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { RefreshCw, MoreVertical, Trash2, ExternalLink, Table2, FileSpreadsheet, BookOpen, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react';
+import { RefreshCw, MoreVertical, Trash2, ExternalLink, Table2, FileSpreadsheet, BookOpen, CheckCircle2, XCircle, Clock, Loader2, Settings2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
+import { FieldMappingDialog } from './FieldMappingDialog';
 
 interface SourceCardProps {
   source: DealSource;
@@ -21,6 +22,7 @@ interface SourceCardProps {
 
 export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
   const [isSyncing, setIsSyncing] = useState(false);
+  const [mappingOpen, setMappingOpen] = useState(false);
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -186,6 +188,12 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Open in {getSourceTypeName()}
                 </DropdownMenuItem>
+                {source.sourceType === 'gsheets' && (
+                  <DropdownMenuItem onClick={() => setMappingOpen(true)}>
+                    <Settings2 className="w-4 h-4 mr-2" />
+                    Edit Field Mapping
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive"
@@ -199,6 +207,9 @@ export function SourceCard({ source, onSync, onDelete }: SourceCardProps) {
           </div>
         </div>
       </CardContent>
+      {source.sourceType === 'gsheets' && (
+        <FieldMappingDialog source={source} open={mappingOpen} onOpenChange={setMappingOpen} />
+      )}
     </Card>
   );
 }

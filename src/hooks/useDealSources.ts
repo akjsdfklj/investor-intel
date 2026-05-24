@@ -78,12 +78,13 @@ export function useDealSources() {
     try {
       const dbUpdates: Record<string, unknown> = {};
       if (updates.name) dbUpdates.name = updates.name;
-      if (updates.config) dbUpdates.config = updates.config;
+      if (updates.config) dbUpdates.config = JSON.parse(JSON.stringify(updates.config));
       if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
 
       const { error } = await supabase
         .from('deal_sources')
-        .update(dbUpdates)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update(dbUpdates as any)
         .eq('id', id);
 
       if (error) throw error;
