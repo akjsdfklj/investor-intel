@@ -9,9 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { RefreshCw, MoreVertical, Trash2, ExternalLink, Table2, FileSpreadsheet, BookOpen, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react';
+import { RefreshCw, MoreVertical, Trash2, ExternalLink, Table2, FileSpreadsheet, BookOpen, CheckCircle2, XCircle, Clock, Loader2, Settings2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
+import { FieldMappingDialog } from './FieldMappingDialog';
 
 interface SourceCardProps {
   source: DealSource;
